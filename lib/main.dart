@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Scrontch',
       theme: brightness == Brightness.light ? theme.light() : theme.dark(),
-      home: TemporaryTestScreen(),
+      home: MainScreen(),
     );
   }
 }
@@ -38,7 +38,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Define the list of screens
   final List<Widget> _screens = [
     HomeScreen(),
     RecipesScreen(),
@@ -46,13 +45,11 @@ class _MainScreenState extends State<MainScreen> {
     ProfileScreen(),
   ];
 
-  // Define the navigation logic
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
