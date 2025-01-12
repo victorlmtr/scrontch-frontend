@@ -1,10 +1,10 @@
 class Ingredient {
   final int id;
-  final String name;
-  final String alias;
-  final String image;
-  final String description;
-  final int categoryId;
+  late final String name;
+  late final String alias;
+  late final String image;
+  late final String description;
+  late final int categoryId;
   bool isSelected;
   bool isEssential;
 

@@ -47,7 +47,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> fetchCategories() async {
-    final response = await http.get(Uri.parse('http://localhost:8083/api/v1/categories'));
+    final response = await http.get(Uri.parse('http://192.168.1.24:8083/api/v1/categories'));
     if (response.statusCode == 200) {
       final decodedBody = utf8.decode(response.bodyBytes);
       return jsonDecode(decodedBody);

@@ -49,7 +49,7 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
               widget.category.name,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            subtitle: Text('$selectedCount / $totalCount selected'),
+            subtitle: Text('$selectedCount / $totalCount'),
             trailing: IconButton(
               icon: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
               onPressed: () {
@@ -78,24 +78,28 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
       return Stack(
         clipBehavior: Clip.none,
         children: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              foregroundColor: ingredient.isSelected
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onSurface, backgroundColor: ingredient.isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surface,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            onPressed: () {
-              setState(() {
-                ingredient.isSelected = !ingredient.isSelected;
-              });
-              widget.onIngredientToggle(ingredient);
-            },
-            child: Text(
-              ingredient.name,
-              textAlign: TextAlign.center,
+          GestureDetector(
+            onLongPress: () => _showIngredientDetails(ingredient),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                foregroundColor: ingredient.isSelected
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurface,
+                backgroundColor: ingredient.isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.surface,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onPressed: () {
+                setState(() {
+                  ingredient.isSelected = !ingredient.isSelected;
+                });
+                widget.onIngredientToggle(ingredient);
+              },
+              child: Text(
+                ingredient.name,
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           Positioned(
@@ -117,5 +121,36 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
         ],
       );
     }).toList();
+  }
+
+  void _showIngredientDetails(Ingredient ingredient) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(ingredient.name),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                if (ingredient.alias.isNotEmpty)
+                  Text('Noms alternatifs : ${ingredient.alias}'),
+                if (ingredient.image.isNotEmpty)
+                  Image.network(ingredient.image),
+                if (ingredient.description.isNotEmpty)
+                  Text('Description : ${ingredient.description}'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Fermer'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 }
