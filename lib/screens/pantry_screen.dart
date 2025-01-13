@@ -28,15 +28,17 @@ class _PantryScreenState extends State<PantryScreen> {
       currentScreen = PantryContentScreen(); // Display PantryContentScreen
     }
 
-    return DefaultTabController(
-      length: _screenOptions.length,
-      child: Column(
+    return Scaffold(
+      body: Column(
         children: [
+          // Directly use the ScreenPicker without any additional padding or gap above
           ScreenPicker(
             options: _screenOptions,
             selectedOption: _selectedScreen,
             onOptionSelected: _onScreenSelected,
           ),
+
+          // The current screen content (either GroceryScreen or PantryContentScreen)
           Expanded(
             child: currentScreen,
           ),

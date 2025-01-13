@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:scrontch_flutter/api/ingredient_category.dart';
-import '../api/ingredient.dart';
+import '../models/ingredient.dart';
+import '../models/ingredient_category.dart';
 
 class IngredientCategoryWidget extends StatefulWidget {
   final IngredientCategory category;
   final List<Ingredient> ingredients;
-  final ValueChanged<Ingredient> onIngredientToggle;
-  final ValueChanged<Ingredient> onEssentialToggle;
+  final void Function(Ingredient ingredient) onIngredientToggle;
+  final void Function(Ingredient ingredient) onEssentialToggle;
 
   const IngredientCategoryWidget({
     Key? key,
@@ -133,11 +133,11 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
             child: ListBody(
               children: <Widget>[
                 if (ingredient.alias.isNotEmpty)
-                  Text('Noms alternatifs : ${ingredient.alias}'),
+                  Text(ingredient.alias),
                 if (ingredient.image.isNotEmpty)
                   Image.network(ingredient.image),
                 if (ingredient.description.isNotEmpty)
-                  Text('Description : ${ingredient.description}'),
+                  Text(ingredient.description),
               ],
             ),
           ),

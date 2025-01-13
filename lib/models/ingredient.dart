@@ -27,6 +27,16 @@ class Ingredient {
       image: json['image'] ?? '',
       description: json['description'] ?? '',
       categoryId: json['categoryid'],
+      isSelected: json['isSelected'] ?? false,
+      isEssential: json['isEssential'] ?? false,
     );
+  }
+
+  // Ingredient creation for API calls (send only user-specific data)
+  Map<String, dynamic> toApiJson() {
+    return {
+      'ingredientid': id,
+      'userid': 18,  // replace with actual user id dynamically
+    };
   }
 }

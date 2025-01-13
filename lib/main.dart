@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
     MaterialTheme theme = MaterialTheme(textTheme);
     return MaterialApp(
       title: 'Scrontch',
-      theme: brightness == Brightness.light ? theme.light() : theme.dark(),
+      theme: brightness == Brightness.light ? theme.light() : theme.light(),
       home: MainScreen(),
     );
   }
