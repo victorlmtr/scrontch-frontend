@@ -5,13 +5,13 @@ import '../models/diet.dart';
 import '../models/ingredient.dart';
 
 class ApiService {
-  final String recipesUrl = 'http://192.168.1.21:8084/api/v1/recipes';
-  final String ingredientsUrl = 'http://192.168.1.21:8083/api/v1/ingredients';
-  final String commentsUrl = 'http://192.168.1.21:8081/api/v1/comments';
-  final String shoppingListsUrl = 'http://192.168.1.21:8085/api/v1/shoppinglists';
-  final String dietsUrl = 'http://192.168.1.21:8082/api/v1/diets';
-  final String usersUrl = 'http://192.168.1.21:8086/api/v1/users';
-  final String baseUsersUrl = 'http://192.168.1.21:8086/api/v1';
+  final String recipesUrl = 'http://victorl.xyz:8084/api/v1/recipes';
+  final String ingredientsUrl = 'http://victorl.xyz:8083/api/v1/ingredients';
+  final String commentsUrl = 'http://victorl.xyz:8081/api/v1/comments';
+  final String shoppingListsUrl = 'http://victorl.xyz:8085/api/v1/shoppinglists';
+  final String dietsUrl = 'http://victorl.xyz:8082/api/v1/diets';
+  final String usersUrl = 'http://victorl.xyz:8086/api/v1/users';
+  final String baseUsersUrl = 'http://victorl.xyz:8086/api/v1';
 
 
   Future<List<dynamic>> fetchRecipes() async {
@@ -40,7 +40,7 @@ class ApiService {
   }
 
   Future<List<Diet>> fetchUserDiets(int userId) async {
-    final response = await http.get(Uri.parse('http://192.168.1.21:8086/api/v1/userDiets/user/$userId'));
+    final response = await http.get(Uri.parse('http://victorl.xyz:8086/api/v1/userDiets/user/$userId'));
 
     if (response.statusCode == 200) {
       List<dynamic> data = jsonDecode(response.body);
@@ -63,7 +63,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> fetchCategories() async {
-    final response = await http.get(Uri.parse('http://192.168.1.21:8083/api/v1/categories'));
+    final response = await http.get(Uri.parse('http://victorl.xyz:8083/api/v1/categories'));
     if (response.statusCode == 200) {
       final decodedBody = utf8.decode(response.bodyBytes);
       return jsonDecode(decodedBody);
@@ -73,7 +73,7 @@ class ApiService {
   }
 
   Future<void> addUserIngredient(int ingredientId, int userId) async {
-    final url = Uri.parse('$baseUsersUrl/userIngredients');
+    final url = Uri.parse('http://victorl.xyz:8086/api/v1/userIngredients');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -83,13 +83,23 @@ class ApiService {
       }),
     );
 
-    if (response.statusCode != 200) {
+    if (response.statusCode != 201) {
       throw Exception('Failed to add user ingredient: ${response.body}');
     }
   }
 
+  Future<void> removeUserIngredient(int ingredientId, int userId) async {
+    final url = Uri.parse('http://victorl.xyz:8086/api/v1/userIngredients/user/$userId/ingredient/$ingredientId');
+    final response = await http.delete(url);
+
+    if (response.statusCode != 204) {
+      throw Exception('Failed to remove user ingredient: ${response.body}');
+    }
+  }
+
+
   Future<void> markEssentialIngredient(int ingredientId, int userId) async {
-    final url = Uri.parse('$baseUsersUrl/essentialIngredients');
+    final url = Uri.parse('http://victorl.xyz:8086/api/v1/essentialIngredients');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -99,13 +109,13 @@ class ApiService {
       }),
     );
 
-    if (response.statusCode != 200) {
+    if (response.statusCode != 201) {
       throw Exception('Failed to mark ingredient as essential');
     }
   }
 
   Future<List<Ingredient>> fetchUserPantry(int userId) async {
-    final url = Uri.parse('$baseUsersUrl/userIngredients/user/$userId');
+    final url = Uri.parse('http://victorl.xyz:8086/api/v1/userIngredients/user/$userId');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {

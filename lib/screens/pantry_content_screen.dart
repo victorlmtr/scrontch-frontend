@@ -32,38 +32,61 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
     try {
       final pantry = await apiService.fetchUserPantry(currentUserId);
       print('Pantry data: $pantry');
-      if (pantry != null) {
-        setState(() {
-          pantryIngredients = pantry;
-        });
-      } else {
-        print('Pantry data is null');
-      }
+      setState(() {
+        pantryIngredients = pantry;
+        // Set isSelected for all ingredients based on pantry data
+        for (var ingredient in allIngredients) {
+          ingredient.isSelected = pantryIngredients.any((p) => p.id == ingredient.id);
+        }
+      });
     } catch (error) {
       print('Error loading pantry: $error');
     }
   }
 
-  void _toggleIngredient(Ingredient ingredient) async {
-    try {
-      // Update the local state first
-      setState(() {
-        ingredient.isSelected = !ingredient.isSelected;
-      });
+    void _toggleIngredient(Ingredient ingredient) async {
+      try {
+        // Update local state first
+        setState(() {
+          ingredient.isSelected = !ingredient.isSelected;
+        });
 
-      // Make API call to toggle user-specific ingredient state
-      await apiService.addUserIngredient(ingredient.id, currentUserId);
-
-      // Log for debugging
-      print('Ingredient toggled successfully');
-    } catch (error) {
-      // Rollback state on failure
-      setState(() {
-        ingredient.isSelected = !ingredient.isSelected;
-      });
-      print('Error toggling ingredient: $error');
+        if (ingredient.isSelected) {
+          // Check if the ingredient is already in the pantry (i.e., it should not be added again)
+          bool existsInPantry = pantryIngredients.any((p) => p.id == ingredient.id);
+          if (!existsInPantry) {
+            // If it doesn't exist in pantry, add it
+            await apiService.addUserIngredient(ingredient.id, currentUserId);
+            print('Ingredient added to pantry');
+          } else {
+            // Ingredient is already in pantry
+            print('Ingredient already in pantry, no need to add');
+          }
+        } else {
+          // Only try to remove if it exists in the pantry
+          bool existsInPantry = pantryIngredients.any((p) => p.id == ingredient.id);
+          if (existsInPantry) {
+            // Remove ingredient if it exists in the pantry
+            await apiService.removeUserIngredient(ingredient.id, currentUserId);
+            print('Ingredient removed from pantry');
+          } else {
+            // Ingredient not found in pantry, cannot remove
+            setState(() {
+              ingredient.isSelected = true; // Revert the toggle if not found
+            });
+            print('Ingredient not found in pantry, cannot remove.');
+          }
+        }
+        print('Ingredient toggled successfully');
+      } catch (error) {
+        // Rollback state on failure
+        setState(() {
+          ingredient.isSelected = !ingredient.isSelected; // Revert the toggle
+        });
+        print('Error toggling ingredient: $error');
+      }
     }
-  }
+
 
   void _markEssential(Ingredient ingredient) async {
     try {
@@ -137,8 +160,7 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
                           .where((ingredient) {
                         return ingredient.name.toLowerCase().contains(
                             searchTerm) ||
-                            (ingredient.alias != null &&
-                                ingredient.alias!.toLowerCase().contains(
+                            (ingredient.alias.toLowerCase().contains(
                                     searchTerm));
                       }).toList();
                       if (filteredCategoryIngredients.isNotEmpty ||

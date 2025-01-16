@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:scrontch_flutter/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/secure_storage_service.dart';
 import 'profile_screen.dart';
@@ -127,12 +128,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).pop();
               },
             ),
-            TextButton(
-              child: Text('Create Account'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
+        TextButton(
+        child: Text('Create Account'),
+        onPressed: () {
+        Navigator.of(context).pop();
+        Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => RegisterScreen()),
+        );
+        },
+        ),
           ],
         );
       },
@@ -141,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Login API Call
   Future<bool> _login(BuildContext context, String username, String password) async {
-    const String apiUrl = 'http://192.168.1.21:8086/api/v1/auth/login';
+    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/login';
 
     try {
       final response = await http.post(

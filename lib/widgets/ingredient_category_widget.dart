@@ -90,15 +90,27 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
                     : Theme.of(context).colorScheme.surface,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              onPressed: () {
+              onPressed: () async {
+                final previousState = ingredient.isSelected;
                 setState(() {
                   ingredient.isSelected = !ingredient.isSelected;
                 });
-                widget.onIngredientToggle(ingredient);
+                try {
+                  widget.onIngredientToggle(ingredient);
+                } catch (error) {
+                  setState(() {
+                    ingredient.isSelected = previousState; // Rollback on error
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to toggle ingredient: $error')),
+                  );
+                }
               },
               child: Text(
                 ingredient.name,
                 textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis, // Prevents overflow
+                maxLines: 1,
               ),
             ),
           ),
@@ -110,11 +122,21 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
                 ingredient.isEssential ? Icons.star_rounded : Icons.star_border_outlined,
                 color: ingredient.isEssential ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceDim,
               ),
-              onPressed: () {
+              onPressed: () async {
+                final previousState = ingredient.isEssential;
                 setState(() {
                   ingredient.isEssential = !ingredient.isEssential;
                 });
-                widget.onEssentialToggle(ingredient);
+                try {
+                  widget.onEssentialToggle(ingredient);
+                } catch (error) {
+                  setState(() {
+                    ingredient.isEssential = previousState; // Rollback on error
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to mark essential: $error')),
+                  );
+                }
               },
             ),
           ),
