@@ -28,17 +28,23 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkLoginStatus() async {
     String? token;
     String? username;
+    int? userId;
+    String? role;
 
     if (kIsWeb) {
       // Use shared_preferences for web
       final prefs = await SharedPreferences.getInstance();
       token = prefs.getString('token');
       username = prefs.getString('username');
-      _isLoginDialogShown = prefs.getBool('isLoginDialogShown') ?? false; // Check if the dialog has been shown
+      userId = prefs.getInt('userId');
+      role = prefs.getString('role');
+      _isLoginDialogShown = prefs.getBool('isLoginDialogShown') ?? false;
     } else {
       // Use SecureStorageService for mobile
       token = await _secureStorageService.read('token');
       username = await _secureStorageService.read('username');
+      userId = (await _secureStorageService.read('userId')) as int?;
+      role = await _secureStorageService.read('role');
     }
 
     setState(() {
@@ -55,16 +61,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Save login info
-  Future<void> _saveLoginInfo(String token, String username) async {
+  Future<void> _saveLoginInfo(String token, String username, int userId, String role) async {
     if (kIsWeb) {
-      // Use shared_preferences for web
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', token);
       await prefs.setString('username', username);
+      await prefs.setInt('userId', userId);
+      await prefs.setString('role', role);
     } else {
-      // Use SecureStorageService for mobile
       await _secureStorageService.save('token', token);
       await _secureStorageService.save('username', username);
+      await _secureStorageService.save('userId', userId.toString());
+      await _secureStorageService.save('role', role);
     }
   }
 
@@ -125,24 +133,102 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(
               child: Text('Forgot Password?'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop ();
               },
             ),
-        TextButton(
-        child: Text('Create Account'),
-        onPressed: () {
-        Navigator.of(context).pop();
-        Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => RegisterScreen()),
-        );
-        },
-        ),
+            TextButton(
+              child: Text('Create Account'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RegisterScreen()),
+                );
+              },
+            ),
           ],
         );
       },
     );
   }
+
+  // Logout confirmation dialog
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Logout'),
+          content: Text('Are you sure you want to logout?'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            TextButton(
+              child: Text('Logout'),
+              onPressed: () async {
+                await _logout();
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/logout';
+
+    try {
+      String? token = await _secureStorageService.read('token');
+      if (token == null || token.isEmpty) {
+        print('No token found. Cannot logout.');
+        return;
+      }
+
+      print('Token: $token'); // Debugging: Log the token
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Headers: ${{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      }}'); // Debugging: Log the headers
+
+      if (response.statusCode == 200) {
+        if (kIsWeb) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.clear();
+        } else {
+          await _secureStorageService.delete('token');
+          await _secureStorageService.delete('username');
+          await _secureStorageService.delete('userId');
+          await _secureStorageService.delete('role');
+        }
+
+        setState(() {
+          _isLoggedIn = false;
+          _username = '';
+        });
+      } else {
+        print('Failed to logout. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}'); // Debugging: Log response body
+      }
+    } catch (e) {
+      print('Error occurred while logging out: $e');
+    }
+  }
+
 
   // Login API Call
   Future<bool> _login(BuildContext context, String username, String password) async {
@@ -161,8 +247,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Save token and user info
-        await _saveLoginInfo(data['token'], data['username']);
+        // Save token, username, and user ID
+        await _saveLoginInfo(data['token'], data['username'], data['userid'], data['role']);
 
         // Update login state
         setState(() {
@@ -188,18 +274,16 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text('Home Screen'),
         actions: [
-          if (_isLoggedIn)
-            IconButton(
-              icon: Icon(Icons.person),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ProfileScreen(),
-                  ),
-                );
-              },
-            ),
+          IconButton(
+            icon: Icon(Icons.person),
+            onPressed: () {
+              if (_isLoggedIn) {
+                _showLogoutDialog(context); // Show logout dialog if logged in
+              } else {
+                _showLoginDialog(context); // Show login dialog if logged out
+              }
+            },
+          ),
         ],
       ),
       body: Center(

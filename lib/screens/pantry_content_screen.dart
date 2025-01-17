@@ -5,6 +5,9 @@ import '../models/ingredient_category.dart';
 import '../widgets/ingredient_category_widget.dart';
 
 class PantryContentScreen extends StatefulWidget {
+  final int userId;
+  PantryContentScreen({required this.userId});
+
   @override
   _PantryContentScreenState createState() => _PantryContentScreenState();
 }
@@ -12,7 +15,7 @@ class PantryContentScreen extends StatefulWidget {
 class _PantryContentScreenState extends State<PantryContentScreen> {
   final ApiService apiService = ApiService();
   late Future<List<dynamic>> futureData;
-  int currentUserId = 18;
+  late int currentUserId;
   List<Ingredient> pantryIngredients = [];
   List<Ingredient> allIngredients = [];
   List<IngredientCategory> categories = [];
@@ -21,6 +24,7 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
   @override
   void initState() {
     super.initState();
+    currentUserId = widget.userId;
     futureData = Future.wait([
       apiService.fetchIngredients(),
       apiService.fetchCategories(),

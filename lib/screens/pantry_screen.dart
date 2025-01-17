@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../widgets/screen_picker.dart';
-import 'grocery_screen.dart'; // Import your GroceryScreen
-import 'pantry_content_screen.dart'; // Import your PantryContentScreen
+import 'grocery_screen.dart';
+import 'pantry_content_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../api/secure_storage_service.dart';
 
 class PantryScreen extends StatefulWidget {
   @override
@@ -9,9 +11,26 @@ class PantryScreen extends StatefulWidget {
 }
 
 class _PantryScreenState extends State<PantryScreen> {
-  String _selectedScreen = "Garde-manger"; // Default selected screen
-
+  String _selectedScreen = "Garde-manger";
   final List<String> _screenOptions = ["Garde-manger", "Liste de courses"];
+  final SecureStorageService _secureStorageService = SecureStorageService();
+  bool _isLoggedIn = false;
+  int? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    // Check if the user is logged in and retrieve userId
+    String? userIdString = await _secureStorageService.read('userId');
+    setState(() {
+      _isLoggedIn = userIdString != null;
+      _userId = _isLoggedIn ? int.tryParse(userIdString!) : null;
+    });
+  }
 
   void _onScreenSelected(String screen) {
     setState(() {
@@ -23,21 +42,28 @@ class _PantryScreenState extends State<PantryScreen> {
   Widget build(BuildContext context) {
     Widget currentScreen;
     if (_selectedScreen == "Liste de courses") {
-      currentScreen = GroceryScreen(); // Display GroceryScreen
+      currentScreen = GroceryScreen();
     } else {
-      currentScreen = PantryContentScreen(); // Display PantryContentScreen
+      if (_isLoggedIn && _userId != null) {
+        currentScreen = PantryContentScreen(userId: _userId!);
+      } else {
+        // Show a message or redirect to login if not logged in
+        return Scaffold(
+          body: Center(
+            child: Text('Please log in to access the pantry.'),
+          ),
+        );
+      }
     }
 
     return Scaffold(
       body: Column(
         children: [
-          // Directly use the ScreenPicker without any additional padding or gap above
           ScreenPicker(
             options: _screenOptions,
             selectedOption: _selectedScreen,
             onOptionSelected: _onScreenSelected,
           ),
-
           // The current screen content (either GroceryScreen or PantryContentScreen)
           Expanded(
             child: currentScreen,

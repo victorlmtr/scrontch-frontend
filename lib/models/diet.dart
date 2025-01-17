@@ -1,6 +1,6 @@
 class Diet {
   final int id;
-  final String name;  // Assuming the diet has a name or description.
+  final String name;
 
   Diet({required this.id, required this.name});
 
