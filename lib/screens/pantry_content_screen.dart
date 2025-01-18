@@ -25,71 +25,95 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
   void initState() {
     super.initState();
     currentUserId = widget.userId;
+
+    // Load all ingredients first
     futureData = Future.wait([
       apiService.fetchIngredients(),
       apiService.fetchCategories(),
     ]);
-    _loadUserPantry();
+
+    futureData.then((data) {
+      setState(() {
+        allIngredients = (data[0] as List<dynamic>)
+            .map((json) => Ingredient.fromJson(json))
+            .toList();
+      });
+      _loadUserPantry();
+    });
   }
 
   void _loadUserPantry() async {
     try {
+      // Fetch pantry data
       final pantry = await apiService.fetchUserPantry(currentUserId);
-      print('Pantry data: $pantry');
+      print('Pantry data (raw): ${pantry.map((e) => e.toJson()).toList()}');
+
       setState(() {
         pantryIngredients = pantry;
-        // Set isSelected for all ingredients based on pantry data
+
+        // Create a set of ingredient IDs from the pantry for quick lookup
+        final pantryIngredientIds = pantryIngredients.map((p) => p.id).toSet();
+
+        // Update allIngredients based on pantry data
         for (var ingredient in allIngredients) {
-          ingredient.isSelected = pantryIngredients.any((p) => p.id == ingredient.id);
+          // Check if the ingredient is in the pantry
+          ingredient.isSelected = pantryIngredientIds.contains(ingredient.id);
+          print('Checking ingredient ${ingredient.id} (${ingredient.name}): isInPantry=${ingredient.isSelected}');
         }
+
+        // Log only selected ingredients
+        final selectedIngredients = allIngredients.where((ingredient) => ingredient.isSelected).toList();
+        print('Updated selected ingredients: ${selectedIngredients.map((e) => e.toJson()).toList()}');
       });
     } catch (error) {
       print('Error loading pantry: $error');
     }
   }
 
-    void _toggleIngredient(Ingredient ingredient) async {
-      try {
-        // Update local state first
-        setState(() {
-          ingredient.isSelected = !ingredient.isSelected;
-        });
 
-        if (ingredient.isSelected) {
-          // Check if the ingredient is already in the pantry (i.e., it should not be added again)
-          bool existsInPantry = pantryIngredients.any((p) => p.id == ingredient.id);
-          if (!existsInPantry) {
-            // If it doesn't exist in pantry, add it
-            await apiService.addUserIngredient(ingredient.id, currentUserId);
-            print('Ingredient added to pantry');
-          } else {
-            // Ingredient is already in pantry
-            print('Ingredient already in pantry, no need to add');
-          }
-        } else {
-          // Only try to remove if it exists in the pantry
-          bool existsInPantry = pantryIngredients.any((p) => p.id == ingredient.id);
-          if (existsInPantry) {
-            // Remove ingredient if it exists in the pantry
-            await apiService.removeUserIngredient(ingredient.id, currentUserId);
-            print('Ingredient removed from pantry');
-          } else {
-            // Ingredient not found in pantry, cannot remove
-            setState(() {
-              ingredient.isSelected = true; // Revert the toggle if not found
-            });
-            print('Ingredient not found in pantry, cannot remove.');
-          }
-        }
-        print('Ingredient toggled successfully');
-      } catch (error) {
-        // Rollback state on failure
+
+
+  void _toggleIngredient(Ingredient ingredient) async {
+    try {
+      // Determine if the ingredient is actually in the pantry
+      bool isInPantry = pantryIngredients.any((p) => p.id == ingredient.id);
+
+      setState(() {
+        // Update the state in both lists
+        ingredient.isSelected = !ingredient.isSelected;
+
+        // Find and update the ingredient in allIngredients
+        var allIngredientsItem = allIngredients.firstWhere((i) => i.id == ingredient.id);
+        allIngredientsItem.isSelected = ingredient.isSelected;
+      });
+
+      if (!isInPantry) {
+        await apiService.addUserIngredient(ingredient.id, currentUserId);
+        print('Ingredient ${ingredient.name} (ID: ${ingredient.id}) added to pantry');
+
         setState(() {
-          ingredient.isSelected = !ingredient.isSelected; // Revert the toggle
+          pantryIngredients.add(ingredient);
         });
-        print('Error toggling ingredient: $error');
+      } else {
+        await apiService.removeUserIngredient(ingredient.id, currentUserId);
+        print('Ingredient ${ingredient.name} (ID: ${ingredient.id}) removed from pantry');
+
+        setState(() {
+          pantryIngredients.removeWhere((p) => p.id == ingredient.id);
+        });
       }
+
+      print('Ingredient toggled successfully. Current pantry size: ${pantryIngredients.length}');
+    } catch (error) {
+      setState(() {
+        // Revert the changes in both lists on error
+        ingredient.isSelected = !ingredient.isSelected;
+        var allIngredientsItem = allIngredients.firstWhere((i) => i.id == ingredient.id);
+        allIngredientsItem.isSelected = ingredient.isSelected;
+      });
+      print('Error toggling ingredient ${ingredient.name} (ID: ${ingredient.id}): $error');
     }
+  }
 
 
   void _markEssential(Ingredient ingredient) async {
@@ -125,16 +149,14 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else if (snapshot.hasData) {
-            final ingredients = (snapshot.data![0] as List<dynamic>)
-                .map((json) => Ingredient.fromJson(json))
-                .toList();
-            categories = (snapshot.data![1] as List<dynamic>)
-                .map((json) => IngredientCategory.fromJson(json))
-                .toList();
+            if (categories.isEmpty) {
+              categories = (snapshot.data![1] as List<dynamic>)
+                  .map((json) => IngredientCategory.fromJson(json))
+                  .toList();
+            }
 
-            allIngredients = ingredients;
             final groupedIngredients = <int, List<Ingredient>>{};
-            for (var ingredient in ingredients) {
+            for (var ingredient in allIngredients) {  // Use existing allIngredients
               groupedIngredients.putIfAbsent(ingredient.categoryId, () => [])
                   .add(ingredient);
             }

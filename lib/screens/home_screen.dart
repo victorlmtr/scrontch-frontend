@@ -27,24 +27,30 @@ class _HomeScreenState extends State<HomeScreen> {
   // Check if the user is logged in
   Future<void> _checkLoginStatus() async {
     String? token;
+    String? refreshToken;
     String? username;
     int? userId;
     String? role;
 
     if (kIsWeb) {
-      // Use shared_preferences for web
       final prefs = await SharedPreferences.getInstance();
       token = prefs.getString('token');
+      refreshToken = prefs.getString('refreshToken');
       username = prefs.getString('username');
       userId = prefs.getInt('userId');
       role = prefs.getString('role');
       _isLoginDialogShown = prefs.getBool('isLoginDialogShown') ?? false;
     } else {
-      // Use SecureStorageService for mobile
       token = await _secureStorageService.read('token');
+      refreshToken = await _secureStorageService.read('refreshToken');
       username = await _secureStorageService.read('username');
-      userId = (await _secureStorageService.read('userId')) as int?;
+      userId = int.tryParse(await _secureStorageService.read('userId') ?? '');
       role = await _secureStorageService.read('role');
+    }
+
+    // Refresh token if necessary
+    if (token == null || token.isEmpty) {
+      token = await _refreshToken(refreshToken);
     }
 
     setState(() {
@@ -52,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _username = username ?? '';
     });
 
-    // Show login dialog if not logged in and dialog hasn't been shown before
     if (!_isLoggedIn && !_isLoginDialogShown) {
       Future.delayed(Duration.zero, () {
         _showLoginDialog(context);
@@ -247,10 +252,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Save token, username, and user ID
+        // Save token, refresh token, username, and user ID
         await _saveLoginInfo(data['token'], data['username'], data['userid'], data['role']);
+        if (kIsWeb) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('refreshToken', data['refreshToken']);
+        } else {
+          await _secureStorageService.save('refreshToken', data['refreshToken']);
+        }
 
-        // Update login state
         setState(() {
           _isLoggedIn = true;
           _username = data['username'];
@@ -267,6 +277,49 @@ class _HomeScreenState extends State<HomeScreen> {
       return false;
     }
   }
+
+
+  Future<String?> _refreshToken(String? refreshToken) async {
+    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/refresh-token';
+
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return null;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        String newToken = data['accessToken'];
+        String newRefreshToken = data['refreshToken'];
+
+        // Save new tokens
+        if (kIsWeb) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', newToken);
+          await prefs.setString('refreshToken', newRefreshToken);
+        } else {
+          await _secureStorageService.save('token', newToken);
+          await _secureStorageService.save('refreshToken', newRefreshToken);
+        }
+
+        return newToken;
+      } else {
+        print('Failed to refresh token. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error occurred while refreshing token: $e');
+      return null;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {

@@ -99,7 +99,7 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
                   widget.onIngredientToggle(ingredient);
                 } catch (error) {
                   setState(() {
-                    ingredient.isSelected = previousState; // Rollback on error
+                    ingredient.isSelected = previousState;
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Failed to toggle ingredient: $error')),

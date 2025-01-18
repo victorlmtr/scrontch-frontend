@@ -33,10 +33,16 @@ class Ingredient {
   }
 
   // Ingredient creation for API calls (send only user-specific data)
-  Map<String, dynamic> toApiJson() {
+  Map<String, dynamic> toJson() {
     return {
-      'ingredientid': id,
-      'userid': 18,  // replace with actual user id dynamically
+      'id': id,
+      'name': name,
+      'alias': alias,
+      'image': image,
+      'description': description,
+      'categoryId': categoryId,
+      'isSelected': isSelected,
+      'isEssential': isEssential,
     };
   }
 }
