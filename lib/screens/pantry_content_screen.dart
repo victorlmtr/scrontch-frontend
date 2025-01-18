@@ -269,7 +269,7 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => AddIngredientScreen(),
+            builder: (context) => AddIngredientScreen(userId: currentUserId,),
           ),
         );
       },

@@ -47,28 +47,30 @@ class _PantryScreenState extends State<PantryScreen> {
       if (_isLoggedIn && _userId != null) {
         currentScreen = PantryContentScreen(userId: _userId!);
       } else {
-        // Show a message or redirect to login if not logged in
-        return Scaffold(
-          body: Center(
-            child: Text('Please log in to access the pantry.'),
+        return const Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Text('Please log in to access the pantry.'),
+            ),
           ),
         );
       }
     }
 
     return Scaffold(
-      body: Column(
-        children: [
-          ScreenPicker(
-            options: _screenOptions,
-            selectedOption: _selectedScreen,
-            onOptionSelected: _onScreenSelected,
-          ),
-          // The current screen content (either GroceryScreen or PantryContentScreen)
-          Expanded(
-            child: currentScreen,
-          ),
-        ],
+      body: SafeArea( // Add SafeArea here
+        child: Column(
+          children: [
+            ScreenPicker(
+              options: _screenOptions,
+              selectedOption: _selectedScreen,
+              onOptionSelected: _onScreenSelected,
+            ),
+            Expanded(
+              child: currentScreen,
+            ),
+          ],
+        ),
       ),
     );
   }

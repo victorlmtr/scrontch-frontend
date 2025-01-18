@@ -215,6 +215,29 @@ class ApiService {
       throw Exception('Failed to fetch essential ingredients');
     }
   }
+  Future<void> createIngredient(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$ingredientsUrl'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create ingredient: ${response.body}');
+    }
+  }
+
+  Future<void> updateIngredient(int id, Map<String, dynamic> data) async {
+    final response = await http.put(
+      Uri.parse('$ingredientsUrl/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update ingredient: ${response.body}');
+    }
+  }
 
 }
 
