@@ -3,6 +3,7 @@ import '../models/ingredient.dart';
 import '../api/api_service.dart';
 import '../models/ingredient_category.dart';
 import '../widgets/ingredient_category_widget.dart';
+import 'add_ingredient_screen.dart';
 
 class PantryContentScreen extends StatefulWidget {
   final int userId;
@@ -17,6 +18,7 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
   late Future<List<dynamic>> futureData;
   late int currentUserId;
   List<Ingredient> pantryIngredients = [];
+  List<Ingredient> essentialIngredients = [];
   List<Ingredient> allIngredients = [];
   List<IngredientCategory> categories = [];
   String searchTerm = '';
@@ -25,13 +27,10 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
   void initState() {
     super.initState();
     currentUserId = widget.userId;
-
-    // Load all ingredients first
     futureData = Future.wait([
       apiService.fetchIngredients(),
       apiService.fetchCategories(),
     ]);
-
     futureData.then((data) {
       setState(() {
         allIngredients = (data[0] as List<dynamic>)
@@ -44,33 +43,49 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
 
   void _loadUserPantry() async {
     try {
-      // Fetch pantry data
+      // Fetch both pantry and essential data
       final pantry = await apiService.fetchUserPantry(currentUserId);
+      final essential = await apiService.fetchEssentialIngredients(
+          currentUserId);
+
       print('Pantry data (raw): ${pantry.map((e) => e.toJson()).toList()}');
+      print(
+          'Essential data (raw): ${essential.map((e) => e.toJson()).toList()}');
 
       setState(() {
         pantryIngredients = pantry;
+        essentialIngredients = essential;
 
-        // Create a set of ingredient IDs from the pantry for quick lookup
+        // Create sets for quick lookup
         final pantryIngredientIds = pantryIngredients.map((p) => p.id).toSet();
+        final essentialIngredientIds = essentialIngredients.map((p) => p.id)
+            .toSet();
 
-        // Update allIngredients based on pantry data
+        // Update allIngredients based on both pantry and essential data
         for (var ingredient in allIngredients) {
-          // Check if the ingredient is in the pantry
           ingredient.isSelected = pantryIngredientIds.contains(ingredient.id);
-          print('Checking ingredient ${ingredient.id} (${ingredient.name}): isInPantry=${ingredient.isSelected}');
+          ingredient.isEssential =
+              essentialIngredientIds.contains(ingredient.id);
+          print('Checking ingredient ${ingredient.id} (${ingredient.name}): '
+              'isInPantry=${ingredient.isSelected}, '
+              'isEssential=${ingredient.isEssential}');
         }
 
-        // Log only selected ingredients
-        final selectedIngredients = allIngredients.where((ingredient) => ingredient.isSelected).toList();
-        print('Updated selected ingredients: ${selectedIngredients.map((e) => e.toJson()).toList()}');
+        // Log selected and essential ingredients
+        final selectedIngredients = allIngredients.where((
+            ingredient) => ingredient.isSelected).toList();
+        print('Updated selected ingredients: ${selectedIngredients.map((e) =>
+            e.toJson()).toList()}');
+
+        final essentialIngs = allIngredients.where((ingredient) =>
+        ingredient.isEssential).toList();
+        print('Updated essential ingredients: ${essentialIngs.map((e) =>
+            e.toJson()).toList()}');
       });
     } catch (error) {
-      print('Error loading pantry: $error');
+      print('Error loading pantry and essential ingredients: $error');
     }
   }
-
-
 
 
   void _toggleIngredient(Ingredient ingredient) async {
@@ -83,135 +98,184 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
         ingredient.isSelected = !ingredient.isSelected;
 
         // Find and update the ingredient in allIngredients
-        var allIngredientsItem = allIngredients.firstWhere((i) => i.id == ingredient.id);
+        var allIngredientsItem = allIngredients.firstWhere((i) =>
+        i.id == ingredient.id);
         allIngredientsItem.isSelected = ingredient.isSelected;
       });
 
       if (!isInPantry) {
         await apiService.addUserIngredient(ingredient.id, currentUserId);
-        print('Ingredient ${ingredient.name} (ID: ${ingredient.id}) added to pantry');
+        print('Ingredient ${ingredient.name} (ID: ${ingredient
+            .id}) added to pantry');
 
         setState(() {
           pantryIngredients.add(ingredient);
         });
       } else {
         await apiService.removeUserIngredient(ingredient.id, currentUserId);
-        print('Ingredient ${ingredient.name} (ID: ${ingredient.id}) removed from pantry');
+        print('Ingredient ${ingredient.name} (ID: ${ingredient
+            .id}) removed from pantry');
 
         setState(() {
           pantryIngredients.removeWhere((p) => p.id == ingredient.id);
         });
       }
 
-      print('Ingredient toggled successfully. Current pantry size: ${pantryIngredients.length}');
+      print(
+          'Ingredient toggled successfully. Current pantry size: ${pantryIngredients
+              .length}');
     } catch (error) {
       setState(() {
         // Revert the changes in both lists on error
         ingredient.isSelected = !ingredient.isSelected;
-        var allIngredientsItem = allIngredients.firstWhere((i) => i.id == ingredient.id);
+        var allIngredientsItem = allIngredients.firstWhere((i) =>
+        i.id == ingredient.id);
         allIngredientsItem.isSelected = ingredient.isSelected;
       });
-      print('Error toggling ingredient ${ingredient.name} (ID: ${ingredient.id}): $error');
+      print('Error toggling ingredient ${ingredient.name} (ID: ${ingredient
+          .id}): $error');
     }
   }
 
 
   void _markEssential(Ingredient ingredient) async {
     try {
-      // Update the local state first
+      // Determine if the ingredient is currently marked as essential
+      bool isEssential = essentialIngredients.any((p) => p.id == ingredient.id);
+
       setState(() {
+        // Update the state in both lists
         ingredient.isEssential = !ingredient.isEssential;
+
+        // Find and update the ingredient in allIngredients
+        var allIngredientsItem = allIngredients.firstWhere((i) =>
+        i.id == ingredient.id);
+        allIngredientsItem.isEssential = ingredient.isEssential;
       });
 
-      // Make API call to mark ingredient as essential
-      await apiService.markEssentialIngredient(ingredient.id, currentUserId);
+      if (!isEssential) {
+        await apiService.addEssentialIngredient(ingredient.id, currentUserId);
+        print('Ingredient ${ingredient.name} (ID: ${ingredient
+            .id}) marked as essential');
 
-      // Log for debugging
-      print('Ingredient marked as essential successfully');
+        setState(() {
+          essentialIngredients.add(ingredient);
+        });
+      } else {
+        await apiService.removeEssentialIngredient(
+            ingredient.id, currentUserId);
+        print('Ingredient ${ingredient.name} (ID: ${ingredient
+            .id}) unmarked as essential');
+
+        setState(() {
+          essentialIngredients.removeWhere((p) => p.id == ingredient.id);
+        });
+      }
+
+      print(
+          'Essential status toggled successfully. Current essential ingredients count: ${essentialIngredients
+              .length}');
     } catch (error) {
-      // Rollback state on failure
       setState(() {
+        // Revert the changes in both lists on error
         ingredient.isEssential = !ingredient.isEssential;
+        var allIngredientsItem = allIngredients.firstWhere((i) =>
+        i.id == ingredient.id);
+        allIngredientsItem.isEssential = ingredient.isEssential;
       });
-      print('Error marking essential: $error');
+      print('Error toggling essential status for ingredient ${ingredient
+          .name} (ID: ${ingredient.id}): $error');
     }
   }
 
 
-
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-        future: futureData,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (snapshot.hasData) {
-            if (categories.isEmpty) {
-              categories = (snapshot.data![1] as List<dynamic>)
-                  .map((json) => IngredientCategory.fromJson(json))
-                  .toList();
-            }
+    return Scaffold(
+      body: FutureBuilder<List<dynamic>>(
+          future: futureData,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else if (snapshot.hasData) {
+              if (categories.isEmpty) {
+                categories = (snapshot.data![1] as List<dynamic>)
+                    .map((json) => IngredientCategory.fromJson(json))
+                    .toList();
+              }
 
-            final groupedIngredients = <int, List<Ingredient>>{};
-            for (var ingredient in allIngredients) {  // Use existing allIngredients
-              groupedIngredients.putIfAbsent(ingredient.categoryId, () => [])
-                  .add(ingredient);
-            }
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        searchTerm = value.toLowerCase();
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Rechercher un ingrédient',
-                      border: OutlineInputBorder(),
-                      suffixIcon: Icon(Icons.search),
+              final groupedIngredients = <int, List<Ingredient>>{};
+              for (var ingredient in allIngredients) { // Use existing allIngredients
+                groupedIngredients.putIfAbsent(ingredient.categoryId, () => [])
+                    .add(ingredient);
+              }
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          searchTerm = value.toLowerCase();
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Rechercher un ingrédient',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.search),
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: ListView(
-                    children: categories.map((category) {
-                      final categoryIngredients = groupedIngredients[category
-                          .id] ?? [];
-                      final filteredCategoryIngredients = categoryIngredients
-                          .where((ingredient) {
-                        return ingredient.name.toLowerCase().contains(
-                            searchTerm) ||
-                            (ingredient.alias.toLowerCase().contains(
-                                    searchTerm));
-                      }).toList();
-                      if (filteredCategoryIngredients.isNotEmpty ||
-                          searchTerm.isEmpty) {
-                        return IngredientCategoryWidget(
-                          category: category,
-                          ingredients: filteredCategoryIngredients,
-                          onIngredientToggle: (ingredient) {
-                            _toggleIngredient(ingredient);
-                          },
-                          onEssentialToggle: (ingredient) {
-                            _markEssential(ingredient);
-                          },
-                        );
-                      } else {
-                        return const SizedBox.shrink();
-                      }
-                    }).toList(),
+                  Expanded(
+                    child: ListView(
+                      children: categories.map((category) {
+                        final categoryIngredients = groupedIngredients[category
+                            .id] ?? [];
+                        final filteredCategoryIngredients = categoryIngredients
+                            .where((ingredient) {
+                          return ingredient.name.toLowerCase().contains(
+                              searchTerm) ||
+                              (ingredient.alias.toLowerCase().contains(
+                                  searchTerm));
+                        }).toList();
+                        if (filteredCategoryIngredients.isNotEmpty ||
+                            searchTerm.isEmpty) {
+                          return IngredientCategoryWidget(
+                            category: category,
+                            ingredients: filteredCategoryIngredients,
+                            onIngredientToggle: (ingredient) {
+                              _toggleIngredient(ingredient);
+                            },
+                            onEssentialToggle: (ingredient) {
+                              _markEssential(ingredient);
+                            },
+                          );
+                        } else {
+                          return const SizedBox.shrink();
+                        }
+                      }).toList(),
+                    ),
                   ),
-                ),
-              ],
-            );
-          } else {
-            return const Center(child: Text('No data available'));
+                ],
+              );
+            } else {
+              return const Center(child: Text('No data available'));
+            }
           }
-        });
+      ), floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddIngredientScreen(),
+          ),
+        );
+      },
+      child: const Icon(Icons.add),
+      tooltip: 'Add Ingredient',
+    ),
+    );
   }
 }

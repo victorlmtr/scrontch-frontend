@@ -98,7 +98,7 @@ class ApiService {
   }
 
 
-  Future<void> markEssentialIngredient(int ingredientId, int userId) async {
+  Future<void> addEssentialIngredient(int ingredientId, int userId) async {
     final url = Uri.parse('http://victorl.xyz:8086/api/v1/essentialIngredients');
     final response = await http.post(
       url,
@@ -110,7 +110,15 @@ class ApiService {
     );
 
     if (response.statusCode != 201) {
-      throw Exception('Failed to mark ingredient as essential');
+      throw Exception('Failed to add essential ingredient: ${response.body}');
+    }
+  }
+
+  Future<void> removeEssentialIngredient(int ingredientId, int userId) async {
+    final url = Uri.parse('http://victorl.xyz:8086/api/v1/essentialIngredients/user/$userId/ingredient/$ingredientId');
+    final response = await http.delete(url);
+    if (response.statusCode != 204) {
+      throw Exception('Failed to remove user ingredient: ${response.body}');
     }
   }
 
@@ -160,6 +168,51 @@ class ApiService {
       return pantry;
     } else {
       throw Exception('Failed to fetch user pantry');
+    }
+  }
+
+  Future<List<Ingredient>> fetchEssentialIngredients(int userId) async {
+    final url = Uri.parse('$baseUsersUrl/essentialIngredients/user/$userId');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+
+      // Fetch the ingredients from the ingredients microservice
+      final ingredientsResponse = await http.get(Uri.parse(ingredientsUrl));
+      if (ingredientsResponse.statusCode != 200) {
+        throw Exception('Failed to load ingredients');
+      }
+
+      final List<dynamic> ingredientsData = jsonDecode(ingredientsResponse.body);
+      List<Ingredient> allIngredients = ingredientsData.map((json) => Ingredient.fromJson(json)).toList();
+
+      // Map essential ingredients data
+      List<Ingredient> essentialIngredients = data.map((json) {
+        final ingredientId = json['ingredientid'];
+
+        // Find the ingredient by ID
+        final ingredient = allIngredients.firstWhere(
+                (i) => i.id == ingredientId,
+            orElse: () => Ingredient(
+              id: ingredientId,
+              name: '',
+              alias: '',
+              image: '',
+              description: '',
+              categoryId: 0,
+              isSelected: false,
+              isEssential: true,
+            )
+        );
+
+        ingredient.isEssential = true;
+        return ingredient;
+      }).toList();
+
+      return essentialIngredients;
+    } else {
+      throw Exception('Failed to fetch essential ingredients');
     }
   }
 
