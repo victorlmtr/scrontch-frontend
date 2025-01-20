@@ -42,7 +42,7 @@ class _PantryScreenState extends State<PantryScreen> {
   Widget build(BuildContext context) {
     Widget currentScreen;
     if (_selectedScreen == "Liste de courses") {
-      currentScreen = GroceryScreen();
+      currentScreen = GroceryScreen(userId: _userId!,);
     } else {
       if (_isLoggedIn && _userId != null) {
         currentScreen = PantryContentScreen(userId: _userId!);
