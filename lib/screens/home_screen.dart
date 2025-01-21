@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:scrontch_flutter/screens/recipe_detail_screen.dart';
 import 'package:scrontch_flutter/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/secure_storage_service.dart';
+import '../models/recipe.dart';
+import '../widgets/recipe_big_card.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,15 +19,62 @@ class _HomeScreenState extends State<HomeScreen> {
   final SecureStorageService _secureStorageService = SecureStorageService();
   bool _isLoggedIn = false;
   String _username = '';
-  bool _isLoginDialogShown = false; // Flag to track dialog state
+  bool _isLoginDialogShown = false;
+  List<Recipe> _recipes = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _checkLoginStatus();
+    _loadRecipes();
   }
 
-  // Check if the user is logged in
+  Future<void> _loadRecipes() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('Fetching recipes...');
+      final response = await http.get(
+        Uri.parse('http://victorl.xyz:8084/api/v1/recipes'),
+        headers: {'Accept-Charset': 'UTF-8'},
+      );
+
+      if (response.statusCode == 200) {
+        print('Successfully received response');
+        final String decodedBody = utf8.decode(response.bodyBytes);
+        final List<dynamic> recipesJson = json.decode(decodedBody);
+        print('Decoded JSON data: $recipesJson');
+        setState(() {
+          _recipes = recipesJson.map((json) {
+            print('Processing recipe JSON: $json');
+            try {
+              final recipe = Recipe.fromJson(json);
+              print('Successfully parsed recipe: ${recipe.name}');
+              print('Recipe type: ${recipe.type?.typeName ?? 'null'}');
+              print('Recipe countries: ${recipe.countries?.length ?? 0}');
+              print('Recipe image: ${recipe.image ?? 'null'}');
+              print('Recipe formattedTotalTime: ${recipe.formattedTotalTime ?? 'null'}');
+              return recipe;
+            } catch (e) {
+              print('Error parsing recipe: $e');
+              throw e;
+            }
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('Error loading recipes: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   Future<void> _checkLoginStatus() async {
     String? token;
     String? refreshToken;
@@ -325,26 +375,64 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home Screen'),
+        title: const Text('Recipes'),
         actions: [
           IconButton(
-            icon: Icon(Icons.person),
+            icon: const Icon(Icons.person),
             onPressed: () {
               if (_isLoggedIn) {
-                _showLogoutDialog(context); // Show logout dialog if logged in
+                _showLogoutDialog(context);
               } else {
-                _showLoginDialog(context); // Show login dialog if logged out
+                _showLoginDialog(context);
               }
             },
           ),
         ],
       ),
-      body: Center(
-        child: Text(
-          _isLoggedIn ? 'Welcome $_username!' : 'Welcome!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: _loadRecipes,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: _recipes.length,
+          itemBuilder: (context, index) {
+            final recipe = _recipes[index];
+            return RecipeBigCard(
+              recipeName: recipe.name,
+              imageRes: recipe.image,
+              chipLabel1: recipe.type.typeName,
+              chipLabel2: recipe.countries.isNotEmpty
+                  ? recipe.countries.first.name
+                  : '',
+              chipIcon1: recipe.type.typeIcon ?? '',
+              recipeLength: recipe.formattedTotalTime,
+              userCount: 0, // To be implemented later
+              rating: 0.0, // To be implemented later
+              badgeCount: 0, // To be implemented later
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RecipeDetailScreen(
+                      recipeId: recipe.id,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         ),
       ),
+      floatingActionButton: _isLoggedIn
+          ? FloatingActionButton(
+        onPressed: () {
+          // Navigate to create recipe screen
+          // To be implemented
+        },
+        child: const Icon(Icons.add),
+      )
+          : null,
     );
   }
 }
