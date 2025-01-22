@@ -5,6 +5,7 @@ import '../models/diet.dart';
 import '../models/ingredient.dart';
 
 class ApiService {
+  final String baseUrl = 'http://victorl.xyz:8084/api/v1';
   final String recipesUrl = 'http://victorl.xyz:8084/api/v1/recipes';
   final String ingredientsUrl = 'http://victorl.xyz:8083/api/v1/ingredients';
   final String commentsUrl = 'http://victorl.xyz:8081/api/v1/comments';
@@ -27,6 +28,37 @@ class ApiService {
       throw Exception('Error: $e');
     }
   }
+
+  Future<Map<String, dynamic>> get(String endpoint) async {
+    try {
+
+      final url = '$baseUrl$endpoint';
+      print('ApiService: Making GET request to: $url');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Accept-Charset': 'UTF-8'},
+      );
+
+      print('ApiService: Received response with status: ${response.statusCode}');
+      print('ApiService: Response headers: ${response.headers}');
+
+      if (response.statusCode == 200) {
+        final String decodedBody = utf8.decode(response.bodyBytes);
+        print('ApiService: Decoded response body: $decodedBody');
+        return json.decode(decodedBody);
+      } else {
+        print('ApiService: Error response body: ${response.body}');
+        throw Exception('Failed to load data: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('ApiService: Error during GET request:');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
+      throw Exception('Network error: $e');
+    }
+  }
+
 
   Future<List<dynamic>> fetchDiets() async {
     final response = await http.get(Uri.parse(dietsUrl));

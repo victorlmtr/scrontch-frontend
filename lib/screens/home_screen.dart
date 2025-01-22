@@ -6,7 +6,11 @@ import 'package:scrontch_flutter/screens/recipe_detail_screen.dart';
 import 'package:scrontch_flutter/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/secure_storage_service.dart';
+import '../models/country.dart';
 import '../models/recipe.dart';
+import '../models/recipe_diet.dart';
+import '../models/recipe_type.dart';
+import '../models/step.dart';
 import '../widgets/recipe_big_card.dart';
 import 'profile_screen.dart';
 
@@ -47,19 +51,104 @@ class _HomeScreenState extends State<HomeScreen> {
         final String decodedBody = utf8.decode(response.bodyBytes);
         final List<dynamic> recipesJson = json.decode(decodedBody);
         print('Decoded JSON data: $recipesJson');
+
         setState(() {
           _recipes = recipesJson.map((json) {
-            print('Processing recipe JSON: $json');
+            print('\n--- Starting to parse recipe ---');
             try {
-              final recipe = Recipe.fromJson(json);
-              print('Successfully parsed recipe: ${recipe.name}');
-              print('Recipe type: ${recipe.type?.typeName ?? 'null'}');
-              print('Recipe countries: ${recipe.countries?.length ?? 0}');
-              print('Recipe image: ${recipe.image ?? 'null'}');
-              print('Recipe formattedTotalTime: ${recipe.formattedTotalTime ?? 'null'}');
+              print('1. Basic Info:');
+              print('ID: ${json['id']}');
+              print('Name: ${json['name']}');
+              print('Description: ${json['description']}');
+              print('Difficulty: ${json['difficulty']}');
+              print('Portions: ${json['portions']}');
+              print('Notes: ${json['notes']}');
+              print('Image: ${json['image']}');
+
+              print('\n2. Dates:');
+              print('Created at: ${json['createdat']}');
+              print('Updated at: ${json['updatedat']}');
+
+              print('\n3. Type:');
+              print('Type data: ${json['typeid']}');
+              final recipeType = RecipeType.fromJson(json['typeid'] ?? {});
+              print('Parsed type: ${recipeType.typeName} (${recipeType.id})');
+
+              print('\n4. Countries:');
+              print('Countries data: ${json['countries']}');
+              final countries = (json['countries'] as List?)
+                  ?.map((country) {
+                print('Parsing country: $country');
+                return Country.fromJson(country);
+              })
+                  .toList() ?? [];
+              print('Parsed ${countries.length} countries');
+
+              print('\n5. Recipe Diets:');
+              print('Diet data: ${json['recipediets']}');
+              final recipeDiets = (json['recipediets'] as List?)
+                  ?.map((diet) {
+                print('Parsing diet: $diet');
+                return RecipeDiet.fromJson(diet);
+              })
+                  .toList() ?? [];
+              print('Parsed ${recipeDiets.length} diets');
+
+              print('\n6. Steps:');
+              print('Steps data: ${json['steps']}');
+              final steps = (json['steps'] as List?)
+                  ?.map((step) {
+                print('\nParsing step: ${step['id']}');
+                print('Step ingredients data: ${step['stepingredients']}');
+
+                // Detailed logging for each step ingredient
+                if (step['stepingredients'] != null) {
+                  (step['stepingredients'] as List).forEach((ingredient) {
+                    print('\nParsing step ingredient:');
+                    print('ID: ${ingredient['id']}');
+                    print('Ingredient ID: ${ingredient['ingredientid']}');
+                    print('Quantity: ${ingredient['quantity']}');
+                    print('Is Optional: ${ingredient['isoptional']}');
+                    print('Unit: ${ingredient['unitid']}');
+                    print('Preparation: ${ingredient['preparationid']}');
+                    print('Ingredient Name: ${ingredient['ingredientName']}');
+                    print('Pantry Status: ${ingredient['pantryStatus']}');
+                  });
+                }
+
+                return RecipeStep.fromJson(step);
+              })
+                  .toList() ?? [];
+              print('Parsed ${steps.length} steps');
+
+              final recipe = Recipe(
+                id: json['id'] ?? 0,
+                name: json['name'] ?? '',
+                description: json['description'] ?? '',
+                difficulty: json['difficulty'] ?? 0,
+                portions: (json['portions'] ?? 0.0).toDouble(),
+                notes: json['notes'],
+                image: json['image'],
+                createdAt: json['createdat'] != null
+                    ? DateTime.parse(json['createdat'])
+                    : DateTime.now(),
+                updatedAt: json['updatedat'] != null
+                    ? DateTime.parse(json['updatedat'])
+                    : null,
+                type: recipeType,
+                countries: countries,
+                recipeDiets: recipeDiets,
+                recipeSteps: steps,
+                formattedTotalTime: json['formattedTotalTime'] ?? '',
+              );
+
+              print('\n--- Successfully parsed recipe: ${recipe.name} ---\n');
               return recipe;
-            } catch (e) {
-              print('Error parsing recipe: $e');
+
+            } catch (e, stackTrace) {
+              print('Error while parsing recipe data:');
+              print('Error: $e');
+              print('Stack trace: $stackTrace');
               throw e;
             }
           }).toList();

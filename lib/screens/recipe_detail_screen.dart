@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 import '../api/recipe_service.dart';
+import '../models/ingredient.dart';
 import '../models/recipe.dart';
 import '../models/step_ingredient.dart';
 import '../models/step.dart';
+import '../utils/french_text_handler.dart';
+import '../utils/number_formatter.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final int recipeId;
@@ -50,7 +53,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               children: [
                 if (recipe.image != null && recipe.image!.isNotEmpty)
                   Image.network(
-                    recipe.image!,  // Use ! since we've checked it's not null
+                    recipe.image!, // Use ! since we've checked it's not null
                     width: double.infinity,
                     height: 200,
                     fit: BoxFit.cover,
@@ -62,7 +65,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     children: [
                       Text(
                         recipe.name,
-                        style: Theme.of(context).textTheme.headlineMedium,
+                        style: Theme
+                            .of(context)
+                            .textTheme
+                            .headlineMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(recipe.description),
@@ -114,7 +120,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             children: [
               if (recipeStep.image != null && recipeStep.image!.isNotEmpty)
                 Image.network(
-                  recipeStep.image!,  // Use ! since we've checked it's not null
+                  recipeStep.image!,
                   width: double.infinity,
                   height: 150,
                   fit: BoxFit.cover,
@@ -126,7 +132,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   children: [
                     Text(
                       'Step ${index + 1}: ${recipeStep.title}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme
+                          .of(context)
+                          .textTheme
+                          .titleMedium,
                     ),
                     const SizedBox(height: 8),
                     Text(recipeStep.instructions),
@@ -148,7 +157,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       children: [
         Text(
           'Ingredients:',
-          style: Theme.of(context).textTheme.titleSmall,
+          style: Theme
+              .of(context)
+              .textTheme
+              .titleSmall,
         ),
         const SizedBox(height: 8),
         ...ingredients.map((ingredient) => _buildIngredientItem(ingredient)),
@@ -157,32 +169,224 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildIngredientItem(StepIngredient stepIngredient) {
-    final ingredient = stepIngredient.ingredient;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          if (ingredient?.image != null && ingredient!.image.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                ingredient.image,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
+    return GestureDetector(
+      onLongPress: () {
+        if (stepIngredient.ingredient != null) {
+          _showIngredientDetails(stepIngredient.ingredient!);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            if (stepIngredient.ingredient?.image != null &&
+                stepIngredient.ingredient!.image.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  stepIngredient.ingredient!.image,
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.image_not_supported,
+                    size: 40,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${NumberFormatter.format(stepIngredient.quantity)} '
+                                '${stepIngredient.unit.unitName} ',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          TextSpan(
+                            text: stepIngredient.ingredient != null
+                                ? FrenchTextHandler.handlePlural(
+                              stepIngredient.ingredient!.name,
+                              stepIngredient.quantity,
+                            )
+                                : 'Loading...',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (stepIngredient.isOptional)
+                            TextSpan(
+                              text: ' (optionnel)',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          if (stepIngredient.preparationMethod.name.isNotEmpty &&
+                              stepIngredient.preparationMethod.name != 'undefined')
+                            TextSpan(
+                              text: ' - ${stepIngredient.preparationMethod.name}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (stepIngredient.ingredient != null)
+                    Icon(
+                      stepIngredient.ingredient!.isSelected
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      color: stepIngredient.ingredient!.isSelected
+                          ? Colors.green
+                          : Colors.grey,
+                      size: 20,
+                    ),
+                ],
               ),
             ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${stepIngredient.quantity} ${stepIngredient.unit.unitName} '
-                  '${ingredient?.name ?? stepIngredient.ingredientName}'
-                  '${stepIngredient.isOptional ? ' (optional)' : ''}'
-                  '${stepIngredient.preparationMethod.name.isNotEmpty ? ' - ${stepIngredient.preparationMethod.name}' : ''}',
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showIngredientDetails(Ingredient ingredient) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery
+                  .of(context)
+                  .size
+                  .height * 0.8,
+              maxWidth: MediaQuery
+                  .of(context)
+                  .size
+                  .width * 0.9,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    ingredient.name,
+                    style: Theme
+                        .of(context)
+                        .textTheme
+                        .titleLarge,
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (ingredient.image.isNotEmpty)
+                          Container(
+                            constraints: BoxConstraints(
+                              maxHeight: MediaQuery
+                                  .of(context)
+                                  .size
+                                  .height * 0.3,
+                            ),
+                            width: double.infinity,
+                            child: Image.network(
+                              ingredient.image,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child,
+                                  loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes !=
+                                        null
+                                        ? loadingProgress
+                                        .cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    size: 50,
+                                    color: Colors.grey,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (ingredient.alias.isNotEmpty) ...[
+                                Text(
+                                  'Also known as:',
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .titleSmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  ingredient.alias,
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .bodyMedium,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              if (ingredient.description.isNotEmpty) ...[
+                                Text(
+                                  'Description:',
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .titleSmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  ingredient.description,
+                                  style: Theme
+                                      .of(context)
+                                      .textTheme
+                                      .bodyMedium,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                OverflowBar(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

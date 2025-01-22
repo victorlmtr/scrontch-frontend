@@ -21,36 +21,50 @@ class RecipeService {
   }
 
   Future<Recipe> getRecipeById(int id) async {
-    final response = await http.get(Uri.parse('${_apiService.recipesUrl}/$id'));
-    if (response.statusCode == 200) {
-      final recipe = Recipe.fromJson(json.decode(response.body));
+    try {
+      print('RecipeService: Fetching recipe with ID: $id');
+      final json = await _apiService.get('/recipes/$id');
+      print('RecipeService: Received response for recipe $id: $json');
+      final recipe = Recipe.fromJson(json);
 
-      // Load ingredient details
+      // Load ingredients after parsing the recipe
       await _loadIngredientsForRecipe(recipe);
 
-      // Load diet names
-      final dietService = DietService(_apiService);
-      await dietService.updateRecipeDietsWithNames(recipe.recipeDiets);
-
       return recipe;
+    } catch (e, stackTrace) {
+      print('RecipeService: Error fetching recipe $id:');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
+      throw Exception('Failed to load recipe: $e');
     }
-    throw Exception('Failed to load recipe');
   }
 
   Future<void> _loadIngredientsForRecipe(Recipe recipe) async {
-    for (var recipeStep in recipe.recipeSteps) {
-      for (var stepIngredient in recipeStep.stepIngredients) {
-        try {
-          final response = await http.get(
-            Uri.parse('${_apiService.ingredientsUrl}/${stepIngredient.ingredientId}'),
-          );
-          if (response.statusCode == 200) {
-            stepIngredient.ingredient = Ingredient.fromJson(json.decode(response.body));
+    // First, fetch all ingredients at once to reduce API calls
+    try {
+      final response = await http.get(
+        Uri.parse(_apiService.ingredientsUrl),
+        headers: {'Accept-Charset': 'UTF-8'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> ingredientsData = json.decode(utf8.decode(response.bodyBytes));
+        final Map<int, Ingredient> ingredientsMap = {
+          for (var json in ingredientsData)
+            json['id']: Ingredient.fromJson(json)
+        };
+
+        // Update all step ingredients with their corresponding ingredient data
+        for (var step in recipe.recipeSteps) {
+          for (var stepIngredient in step.stepIngredients) {
+            if (ingredientsMap.containsKey(stepIngredient.ingredientId)) {
+              stepIngredient.ingredient = ingredientsMap[stepIngredient.ingredientId];
+            }
           }
-        } catch (e) {
-          print('Failed to load ingredient ${stepIngredient.ingredientId}: $e');
         }
       }
+    } catch (e) {
+      print('Error loading ingredients: $e');
     }
   }
 }

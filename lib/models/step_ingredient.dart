@@ -10,10 +10,7 @@ class StepIngredient {
   final bool isOptional;
   final Unit unit;
   final PreparationMethod preparationMethod;
-  final String? ingredientName;  // Make nullable
-  final bool? pantryStatus;      // Make nullable
-  Ingredient? ingredient;        // Keep nullable
-
+  Ingredient? ingredient;
   StepIngredient({
     required this.id,
     required this.ingredientId,
@@ -21,26 +18,40 @@ class StepIngredient {
     required this.isOptional,
     required this.unit,
     required this.preparationMethod,
-    this.ingredientName,
-    this.pantryStatus,
-    this.ingredient,
+    this.ingredient
   });
 
   factory StepIngredient.fromJson(Map<String, dynamic> json) {
     try {
-      return StepIngredient(
+      print('\nParsing StepIngredient:');
+      print('Raw JSON: $json');
+
+      // Parse unit
+      print('Parsing unit data: ${json['unitid']}');
+      final unit = Unit.fromJson(json['unitid'] ?? {});
+      print('Parsed unit: ${unit.unitName} (${unit.id})');
+
+      // Parse preparation method
+      print('Parsing preparation method data: ${json['preparationid']}');
+      final prepMethod = PreparationMethod.fromJson(json['preparationid'] ?? {});
+      print('Parsed preparation method: ${prepMethod.name} (${prepMethod.id})');
+
+      final stepIngredient = StepIngredient(
         id: json['id'] ?? 0,
         ingredientId: json['ingredientid'] ?? 0,
         quantity: (json['quantity'] ?? 0.0).toDouble(),
         isOptional: json['isoptional'] ?? false,
-        unit: Unit.fromJson(json['unitid'] ?? {}),
-        preparationMethod: PreparationMethod.fromJson(json['preparationid'] ?? {}),
-        ingredientName: json['ingredientName'],
-        pantryStatus: json['pantryStatus'],
+        unit: unit,
+        preparationMethod: prepMethod
       );
+
+      print('Successfully parsed StepIngredient: ${stepIngredient.id}');
+      return stepIngredient;
+
     } catch (e, stackTrace) {
-      print('Error parsing StepIngredient: $e');
-      print('StepIngredient JSON: $json');
+      print('Error parsing StepIngredient:');
+      print('Error: $e');
+      print('JSON data: $json');
       print('Stack trace: $stackTrace');
       rethrow;
     }
