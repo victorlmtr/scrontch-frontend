@@ -19,4 +19,21 @@ class FrenchTextHandler {
         .replaceAll('(s)', 's')
         .replaceAll('(x)', 'x');
   }
+
+  static String handlePreparationMethod(String method, bool isFemale, double quantity) {
+    if (quantity <= 1) {
+      return method.replaceAll('{gender}', isFemale ? 'e' : '');
+    } else {
+      return method.replaceAll('{gender}', isFemale ? 'es' : 's');
+    }
+  }
+
+  static String handleUnitName(String unitName, double quantity) {
+    if (quantity <= 1) {
+      return unitName.replaceAll('(s)', '').replaceAll('(x)', '');
+    } else {
+      return unitName.replaceAll('(s)', 's').replaceAll('(x)', 'x');
+    }
+  }
 }
+

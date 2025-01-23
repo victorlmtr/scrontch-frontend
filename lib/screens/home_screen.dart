@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:scrontch_flutter/screens/recipe_detail_screen.dart';
 import 'package:scrontch_flutter/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api/api_service.dart';
+import '../api/diet_service.dart';
 import '../api/secure_storage_service.dart';
 import '../models/country.dart';
 import '../models/recipe.dart';
@@ -21,6 +23,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final SecureStorageService _secureStorageService = SecureStorageService();
+  late final ApiService _apiService;
+  late final DietService _dietService;
   bool _isLoggedIn = false;
   String _username = '';
   bool _isLoginDialogShown = false;
@@ -30,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
+    _dietService = DietService(_apiService);
     _checkLoginStatus();
     _loadRecipes();
   }
@@ -47,117 +53,55 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (response.statusCode == 200) {
-        print('Successfully received response');
         final String decodedBody = utf8.decode(response.bodyBytes);
         final List<dynamic> recipesJson = json.decode(decodedBody);
-        print('Decoded JSON data: $recipesJson');
+
+        final recipes = recipesJson.map((json) {
+          try {
+            final recipeType = RecipeType.fromJson(json['typeid'] ?? {});
+            final countries = (json['countries'] as List?)
+                ?.map((country) => Country.fromJson(country))
+                .toList() ?? [];
+            final recipeDiets = (json['recipediets'] as List?)
+                ?.map((diet) => RecipeDiet.fromJson(diet))
+                .toList() ?? [];
+            final steps = (json['steps'] as List?)
+                ?.map((step) => RecipeStep.fromJson(step))
+                .toList() ?? [];
+
+            return Recipe(
+              id: json['id'] ?? 0,
+              name: json['name'] ?? '',
+              description: json['description'] ?? '',
+              difficulty: json['difficulty'] ?? 0,
+              portions: (json['portions'] ?? 0.0).toDouble(),
+              notes: json['notes'],
+              image: json['image'],
+              createdAt: json['createdat'] != null
+                  ? DateTime.parse(json['createdat'])
+                  : DateTime.now(),
+              updatedAt: json['updatedat'] != null
+                  ? DateTime.parse(json['updatedat'])
+                  : null,
+              type: recipeType,
+              countries: countries,
+              recipeDiets: recipeDiets,
+              recipeSteps: steps,
+              formattedTotalTime: json['formattedTotalTime'] ?? '',
+            );
+          } catch (e, stackTrace) {
+            print('Error parsing recipe: $e\n$stackTrace');
+            rethrow;
+          }
+        }).toList();
 
         setState(() {
-          _recipes = recipesJson.map((json) {
-            print('\n--- Starting to parse recipe ---');
-            try {
-              print('1. Basic Info:');
-              print('ID: ${json['id']}');
-              print('Name: ${json['name']}');
-              print('Description: ${json['description']}');
-              print('Difficulty: ${json['difficulty']}');
-              print('Portions: ${json['portions']}');
-              print('Notes: ${json['notes']}');
-              print('Image: ${json['image']}');
-
-              print('\n2. Dates:');
-              print('Created at: ${json['createdat']}');
-              print('Updated at: ${json['updatedat']}');
-
-              print('\n3. Type:');
-              print('Type data: ${json['typeid']}');
-              final recipeType = RecipeType.fromJson(json['typeid'] ?? {});
-              print('Parsed type: ${recipeType.typeName} (${recipeType.id})');
-
-              print('\n4. Countries:');
-              print('Countries data: ${json['countries']}');
-              final countries = (json['countries'] as List?)
-                  ?.map((country) {
-                print('Parsing country: $country');
-                return Country.fromJson(country);
-              })
-                  .toList() ?? [];
-              print('Parsed ${countries.length} countries');
-
-              print('\n5. Recipe Diets:');
-              print('Diet data: ${json['recipediets']}');
-              final recipeDiets = (json['recipediets'] as List?)
-                  ?.map((diet) {
-                print('Parsing diet: $diet');
-                return RecipeDiet.fromJson(diet);
-              })
-                  .toList() ?? [];
-              print('Parsed ${recipeDiets.length} diets');
-
-              print('\n6. Steps:');
-              print('Steps data: ${json['steps']}');
-              final steps = (json['steps'] as List?)
-                  ?.map((step) {
-                print('\nParsing step: ${step['id']}');
-                print('Step ingredients data: ${step['stepingredients']}');
-
-                // Detailed logging for each step ingredient
-                if (step['stepingredients'] != null) {
-                  (step['stepingredients'] as List).forEach((ingredient) {
-                    print('\nParsing step ingredient:');
-                    print('ID: ${ingredient['id']}');
-                    print('Ingredient ID: ${ingredient['ingredientid']}');
-                    print('Quantity: ${ingredient['quantity']}');
-                    print('Is Optional: ${ingredient['isoptional']}');
-                    print('Unit: ${ingredient['unitid']}');
-                    print('Preparation: ${ingredient['preparationid']}');
-                    print('Ingredient Name: ${ingredient['ingredientName']}');
-                    print('Pantry Status: ${ingredient['pantryStatus']}');
-                  });
-                }
-
-                return RecipeStep.fromJson(step);
-              })
-                  .toList() ?? [];
-              print('Parsed ${steps.length} steps');
-
-              final recipe = Recipe(
-                id: json['id'] ?? 0,
-                name: json['name'] ?? '',
-                description: json['description'] ?? '',
-                difficulty: json['difficulty'] ?? 0,
-                portions: (json['portions'] ?? 0.0).toDouble(),
-                notes: json['notes'],
-                image: json['image'],
-                createdAt: json['createdat'] != null
-                    ? DateTime.parse(json['createdat'])
-                    : DateTime.now(),
-                updatedAt: json['updatedat'] != null
-                    ? DateTime.parse(json['updatedat'])
-                    : null,
-                type: recipeType,
-                countries: countries,
-                recipeDiets: recipeDiets,
-                recipeSteps: steps,
-                formattedTotalTime: json['formattedTotalTime'] ?? '',
-              );
-
-              print('\n--- Successfully parsed recipe: ${recipe.name} ---\n');
-              return recipe;
-
-            } catch (e, stackTrace) {
-              print('Error while parsing recipe data:');
-              print('Error: $e');
-              print('Stack trace: $stackTrace');
-              throw e;
-            }
-          }).toList();
+          _recipes = recipes;
           _isLoading = false;
         });
       }
     } catch (e, stackTrace) {
-      print('Error loading recipes: $e');
-      print('Stack trace: $stackTrace');
+      print('Error loading recipes: $e\n$stackTrace');
       setState(() {
         _isLoading = false;
       });
@@ -220,6 +164,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _updateRecipeDiets(Recipe recipe) async {
+    if (recipe.recipeDiets.isNotEmpty) {
+      await _dietService.updateRecipeDietsWithNames(recipe.recipeDiets);
+    }
+  }
   // Save flag that login dialog has been shown
   Future<void> _markLoginDialogAsShown() async {
     if (kIsWeb) {
@@ -487,26 +436,41 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: _recipes.length,
           itemBuilder: (context, index) {
             final recipe = _recipes[index];
-            return RecipeBigCard(
-              recipeName: recipe.name,
-              imageRes: recipe.image,
-              chipLabel1: recipe.type.typeName,
-              chipLabel2: recipe.countries.isNotEmpty
-                  ? recipe.countries.first.name
-                  : '',
-              chipIcon1: recipe.type.typeIcon ?? '',
-              recipeLength: recipe.formattedTotalTime,
-              userCount: 0, // To be implemented later
-              rating: 0.0, // To be implemented later
-              badgeCount: 0, // To be implemented later
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => RecipeDetailScreen(
-                      recipeId: recipe.id,
-                    ),
-                  ),
+            return FutureBuilder(
+              future: _updateRecipeDiets(recipe),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                return RecipeBigCard(
+                  recipeName: recipe.name,
+                  imageRes: recipe.image,
+                  chipLabel1: recipe.type.typeName,
+                  chipLabel2: recipe.recipeDiets.isNotEmpty
+                      ? recipe.recipeDiets.first.dietName ?? ''
+                      : '',
+                  chipLabel3: recipe.countries.isNotEmpty
+                      ? recipe.countries.first.name
+                      : '',
+                  chipIcon1: recipe.type.typeIcon ?? '',
+                  chipIcon2: recipe.recipeDiets.isNotEmpty
+                      ? recipe.recipeDiets.first.dietIcon ?? ''
+                      : '',
+                  recipeLength: recipe.formattedTotalTime,
+                  userCount: 21,
+                  rating: 3.5,
+                  badgeCount: 6,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RecipeDetailScreen(
+                          recipeId: recipe.id,
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );

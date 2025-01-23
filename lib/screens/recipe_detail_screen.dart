@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:scrontch_flutter/screens/step_detail_screen.dart';
 import '../api/api_service.dart';
 import '../api/recipe_service.dart';
 import '../models/ingredient.dart';
@@ -7,6 +8,8 @@ import '../models/step_ingredient.dart';
 import '../models/step.dart';
 import '../utils/french_text_handler.dart';
 import '../utils/number_formatter.dart';
+import '../widgets/survey_bottom_bar.dart';
+import '../widgets/survey_top_app_bar.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final int recipeId;
@@ -29,60 +32,87 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recipe Details'),
-      ),
-      body: FutureBuilder<Recipe>(
-        future: _recipeFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: Text('No data available'));
-          }
+    return FutureBuilder<Recipe>(
+      future: _recipeFuture,
+      builder: (context, snapshot) {
+        return Scaffold(
+          appBar: snapshot.hasData
+              ? SurveyTopAppBar(
+            stepName: snapshot.data!.name,
+            questionIndex: -1,  // Always -1 for recipe overview
+            totalQuestionsCount: snapshot.data!.recipeSteps.length,
+            onClosePressed: () => Navigator.of(context).pop(),
+          )
+              : AppBar(title: const Text('Détails de la recette')),
+          body: Builder(
+            builder: (context) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: Text('No data available'));
+              }
 
-          final recipe = snapshot.data!;
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (recipe.image != null && recipe.image!.isNotEmpty)
-                  Image.network(
-                    recipe.image!, // Use ! since we've checked it's not null
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                  ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        recipe.name,
-                        style: Theme
-                            .of(context)
-                            .textTheme
-                            .headlineMedium,
+              final recipe = snapshot.data!;
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (recipe.image != null && recipe.image!.isNotEmpty)
+                      Image.network(
+                        recipe.image!,
+                        width: double.infinity,
+                        height: 200,
+                        fit: BoxFit.cover,
                       ),
-                      const SizedBox(height: 8),
-                      Text(recipe.description),
-                      const SizedBox(height: 16),
-                      _buildRecipeInfo(recipe),
-                      const SizedBox(height: 24),
-                      _buildStepsList(recipe.recipeSteps),
-                    ],
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recipe.name,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(recipe.description),
+                          const SizedBox(height: 16),
+                          _buildRecipeInfo(recipe),
+                          const SizedBox(height: 24),
+                          _buildStepsList(recipe.recipeSteps),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
+          ),
+          bottomNavigationBar: snapshot.hasData
+              ? SurveyBottomBar(
+            shouldShowPreviousButton: false,
+            shouldShowDoneButton: false,
+            isNextButtonEnabled: true,
+            onPreviousPressed: () {},
+            onNextPressed: () => _navigateToStep(snapshot.data!, 0),
+            onDonePressed: () {},
+          )
+              : null,
+        );
+      },
+    );
+  }
+
+  void _navigateToStep(Recipe recipe, int stepIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StepDetailsScreen(
+          recipe: recipe,
+          initialStep: stepIndex,
+        ),
       ),
     );
   }
@@ -204,7 +234,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         children: [
                           TextSpan(
                             text: '${NumberFormatter.format(stepIngredient.quantity)} '
-                                '${stepIngredient.unit.unitName} ',
+                                '${FrenchTextHandler.handleUnitName(stepIngredient.unit.unitName, stepIngredient.quantity)} ',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           TextSpan(
@@ -228,7 +258,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           if (stepIngredient.preparationMethod.name.isNotEmpty &&
                               stepIngredient.preparationMethod.name != 'undefined')
                             TextSpan(
-                              text: ' - ${stepIngredient.preparationMethod.name}',
+                              text: ' - ${FrenchTextHandler.handlePreparationMethod(
+                                stepIngredient.preparationMethod.name,
+                                stepIngredient.ingredient?.isFemale ?? false,
+                                stepIngredient.quantity,
+                              )}',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                         ],

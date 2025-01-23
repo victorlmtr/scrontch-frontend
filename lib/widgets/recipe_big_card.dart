@@ -12,7 +12,9 @@ class RecipeBigCard extends StatelessWidget {
   final String? imageRes;
   final String chipLabel1;
   final String chipLabel2;
+  final String chipLabel3;
   final String chipIcon1;
+  final String chipIcon2;
   final String recipeLength;
   final int userCount;
   final double rating;
@@ -25,7 +27,9 @@ class RecipeBigCard extends StatelessWidget {
     this.imageRes,
     required this.chipLabel1,
     required this.chipLabel2,
+    required this.chipLabel3,
     required this.chipIcon1,
+    required this.chipIcon2,
     required this.recipeLength,
     required this.userCount,
     required this.rating,
@@ -51,7 +55,6 @@ class RecipeBigCard extends StatelessWidget {
                 height: 240,
                 child: Column(
                   children: [
-                    // Image and Title Section
                     Stack(
                       children: [
                         ClipRRect(
@@ -113,7 +116,11 @@ class RecipeBigCard extends StatelessWidget {
                                 label: chipLabel1,
                                 iconUrl: chipIcon1,
                               ),
-                              UnselectableChip(label: chipLabel2),
+                              UnselectableChipIcon(
+                                label: chipLabel2,
+                                iconUrl: chipIcon2,
+                              ),
+                              UnselectableChip(label: chipLabel3),
                             ],
                           ),
                         ],
