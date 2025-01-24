@@ -24,7 +24,6 @@ class _PantryScreenState extends State<PantryScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // Check if the user is logged in and retrieve userId
     String? userIdString = await _secureStorageService.read('userId');
     setState(() {
       _isLoggedIn = userIdString != null;
@@ -40,25 +39,28 @@ class _PantryScreenState extends State<PantryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Widget currentScreen;
-    if (_selectedScreen == "Liste de courses") {
-      currentScreen = GroceryScreen(userId: _userId!,);
-    } else {
-      if (_isLoggedIn && _userId != null) {
-        currentScreen = PantryContentScreen(userId: _userId!);
-      } else {
-        return const Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: Text('Please log in to access the pantry.'),
-            ),
+    // If user is not logged in, show login message
+    if (!_isLoggedIn || _userId == null) {
+      return const Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Text('Please log in to access the pantry.'),
           ),
-        );
-      }
+        ),
+      );
     }
 
+    // User is logged in, show selected screen
+    Widget currentScreen;
+    if (_selectedScreen == "Liste de courses") {
+      currentScreen = GroceryScreen(userId: _userId!);
+    } else {
+      currentScreen = PantryContentScreen(userId: _userId!);
+    }
+
+    // Return the main scaffold with the selected screen
     return Scaffold(
-      body: SafeArea( // Add SafeArea here
+      body: SafeArea(
         child: Column(
           children: [
             ScreenPicker(

@@ -274,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/logout';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/logout';
 
     try {
       String? token = await _secureStorageService.read('token');
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Login API Call
   Future<bool> _login(BuildContext context, String username, String password) async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/login';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/login';
 
     try {
       final response = await http.post(
@@ -368,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   Future<String?> _refreshToken(String? refreshToken) async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/refresh-token';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/refresh-token';
 
     if (refreshToken == null || refreshToken.isEmpty) {
       return null;

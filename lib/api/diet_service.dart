@@ -21,7 +21,7 @@ class DietService {
     if (uniqueDietIds.isNotEmpty) {
       try {
         final response = await http.get(
-          Uri.parse(_apiService.dietsUrl),
+          Uri.parse(_apiService.getDietsUrl()),
           headers: {'Accept-Charset': 'UTF-8'},
         );
 

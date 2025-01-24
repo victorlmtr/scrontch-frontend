@@ -53,7 +53,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
   Future<List<ShoppingList>> fetchShoppingLists(int userId) async {
     final response = await http.get(
-        Uri.parse('http://victorl.xyz:8085/api/v1/shoppinglists/user/$userId'));
+        Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/user/$userId'));
     if (response.statusCode == 200) {
       List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => ShoppingList.fromJson(json)).toList();
@@ -103,7 +103,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
       );
 
       final response = await http.post(
-        Uri.parse('http://victorl.xyz:8085/api/v1/shoppinglists'),
+        Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(newList.toJson()),
       );

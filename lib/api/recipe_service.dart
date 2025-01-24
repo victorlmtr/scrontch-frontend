@@ -12,7 +12,7 @@ class RecipeService {
   RecipeService(this._apiService);
 
   Future<List<Recipe>> getAllRecipes() async {
-    final response = await http.get(Uri.parse(_apiService.recipesUrl));
+    final response = await http.get(Uri.parse(_apiService.getRecipesUrl()));
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = json.decode(response.body);
       return jsonList.map((json) => Recipe.fromJson(json)).toList();
@@ -43,7 +43,7 @@ class RecipeService {
     // First, fetch all ingredients at once to reduce API calls
     try {
       final response = await http.get(
-        Uri.parse(_apiService.ingredientsUrl),
+        Uri.parse(_apiService.getIngredientsUrl()),
         headers: {'Accept-Charset': 'UTF-8'},
       );
 
