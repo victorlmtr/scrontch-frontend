@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       print('Fetching recipes...');
       final response = await http.get(
-        Uri.parse('http://victorl.xyz:8084/api/v1/recipes'),
+        Uri.parse('https://victorl.xyz:8084/api/v1/recipes'),
         headers: {'Accept-Charset': 'UTF-8'},
       );
 
