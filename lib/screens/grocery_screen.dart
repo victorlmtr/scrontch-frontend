@@ -283,7 +283,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                                     controller: TextEditingController(
                                                         text: item.description),
                                                     decoration: const InputDecoration(
-                                                      hintText: 'Description (quantité, marque...)',
+                                                      hintText: 'Description',
                                                     ),
                                                     onChanged: (value) {
                                                       // Update description
