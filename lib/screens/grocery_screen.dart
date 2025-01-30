@@ -16,12 +16,14 @@ class GroceryScreen extends StatefulWidget {
 }
 
 class _GroceryScreenState extends State<GroceryScreen> {
+  final TextEditingController _searchController = TextEditingController();
   late Future<List<ShoppingList>> shoppingLists;
   final ApiService _apiService = ApiService();
   List<Ingredient> allIngredients = [];
   TextEditingController searchController = TextEditingController();
+  String searchTerm = '';
+  late Future<List<dynamic>> futureData;
 
-  // Add these helper methods to fetch ingredient name
   Future<String> getIngredientName(int ingredientId) async {
     if (allIngredients.isEmpty) {
       final ingredients = await _apiService.fetchIngredients();
@@ -46,9 +48,28 @@ class _GroceryScreenState extends State<GroceryScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     shoppingLists = fetchShoppingLists(widget.userId);
+    futureData = _apiService.fetchIngredients();
+    _loadIngredients();
+  }
+
+  Future<void> _loadIngredients() async {
+    try {
+      final ingredients = await futureData;
+      setState(() {
+        allIngredients = ingredients.map((json) => Ingredient.fromJson(json)).toList();
+      });
+    } catch (e) {
+      print('Error loading ingredients: $e');
+    }
   }
 
   Future<List<ShoppingList>> fetchShoppingLists(int userId) async {
@@ -139,12 +160,17 @@ class _GroceryScreenState extends State<GroceryScreen> {
     }
   }
 
+  void _clearSearch() {
+    setState(() {
+      searchTerm = '';
+      _searchController.clear();
+    });
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Grocery Lists'),
-      ),
       body: FutureBuilder<List<ShoppingList>>(
         future: shoppingLists,
         builder: (context, snapshot) {
@@ -157,6 +183,59 @@ class _GroceryScreenState extends State<GroceryScreen> {
               length: snapshot.data!.length,
               child: Column(
                 children: [
+                  // Search Bar Section
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        labelText: 'Rechercher un ingrédient à ajouter',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          searchTerm = value.toLowerCase();
+                        });
+                      },
+                    ),
+                  ),
+                  // Search Results
+                  if (searchTerm.isNotEmpty)
+                    Container(
+                      height: 200,
+                      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Builder(
+                        builder: (context) {
+                          final currentList = snapshot.data![DefaultTabController.of(context)?.index ?? 0];
+                          final filteredIngredients = allIngredients
+                              .where((ingredient) =>
+                          ingredient.name.toLowerCase().contains(searchTerm) ||
+                              ingredient.alias.toLowerCase().contains(searchTerm))
+                              .toList();
+
+                          return ListView.builder(
+                            itemCount: filteredIngredients.length,
+                            itemBuilder: (context, index) {
+                              final ingredient = filteredIngredients[index];
+                              return ListTile(
+                                title: Text(ingredient.name),
+                                subtitle: ingredient.alias.isNotEmpty ? Text(ingredient.alias) : null,
+                                onTap: () {
+                                  _addIngredientItem(currentList, ingredient.id);
+                                  _clearSearch();
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  // Tab Bar
                   TabBar(
                     isScrollable: true,
                     labelColor: Colors.blue,
@@ -165,6 +244,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
                       return Tab(text: list.name);
                     }).toList(),
                   ),
+                  // Tab View Content
                   Expanded(
                     child: TabBarView(
                       children: snapshot.data!.map((list) {
@@ -175,15 +255,12 @@ class _GroceryScreenState extends State<GroceryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // Ingredient Items Section
-                                Text('Ingrédients', style: Theme
-                                    .of(context)
-                                    .textTheme
-                                    .titleLarge),
+                                Text('Ingrédients',
+                                    style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 8),
                                 ...list.ingredientItems.map((item) =>
                                     FutureBuilder<String>(
-                                      future: getIngredientName(
-                                          item.ingredientId),
+                                      future: getIngredientName(item.ingredientId),
                                       builder: (context, snapshot) {
                                         return Card(
                                           child: Padding(
@@ -192,15 +269,13 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                               children: [
                                                 Checkbox(
                                                   value: false,
-                                                  // Add a checked property to IngredientItem if needed
                                                   onChanged: (bool? value) {
                                                     // Handle checkbox state
                                                   },
                                                 ),
                                                 Expanded(
                                                   flex: 2,
-                                                  child: Text(snapshot.data ??
-                                                      'Loading...'),
+                                                  child: Text(snapshot.data ?? 'Loading...'),
                                                 ),
                                                 Expanded(
                                                   flex: 3,
@@ -216,8 +291,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                                   ),
                                                 ),
                                                 IconButton(
-                                                  icon: const Icon(
-                                                      Icons.delete),
+                                                  icon: const Icon(Icons.delete),
                                                   onPressed: () {
                                                     // Handle delete
                                                   },
@@ -229,21 +303,10 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                       },
                                     )).toList(),
 
-                                // Add Ingredient Button
-                                TextButton.icon(
-                                  onPressed: () => _showIngredientSearch(list),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Ajouter un ingrédient'),
-                                ),
-
-                                const Divider(height: 32),
-
                                 // Non-Food Items Section
+                                const Divider(height: 32),
                                 Text('Articles non-alimentaires',
-                                    style: Theme
-                                        .of(context)
-                                        .textTheme
-                                        .titleLarge),
+                                    style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 8),
                                 ...list.nonFoodItems.map((item) =>
                                     Card(
@@ -253,7 +316,6 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                           children: [
                                             Checkbox(
                                               value: false,
-                                              // Add a checked property to NonFoodItem if needed
                                               onChanged: (bool? value) {
                                                 // Handle checkbox state
                                               },

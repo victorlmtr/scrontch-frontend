@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../widgets/screen_picker.dart';
 import 'grocery_screen.dart';
@@ -24,7 +25,15 @@ class _PantryScreenState extends State<PantryScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    String? userIdString = await _secureStorageService.read('userId');
+    String? userIdString;
+
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      userIdString = prefs.getInt('userId')?.toString();
+    } else {
+      userIdString = await _secureStorageService.read('userId');
+    }
+
     setState(() {
       _isLoggedIn = userIdString != null;
       _userId = _isLoggedIn ? int.tryParse(userIdString!) : null;
@@ -39,7 +48,6 @@ class _PantryScreenState extends State<PantryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // If user is not logged in, show login message
     if (!_isLoggedIn || _userId == null) {
       return const Scaffold(
         body: SafeArea(
