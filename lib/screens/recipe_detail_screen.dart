@@ -39,7 +39,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           appBar: snapshot.hasData
               ? SurveyTopAppBar(
             stepName: snapshot.data!.name,
-            questionIndex: -1,  // Always -1 for recipe overview
+            questionIndex: -1,
             totalQuestionsCount: snapshot.data!.recipeSteps.length,
             onClosePressed: () => Navigator.of(context).pop(),
           )

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:scrontch_flutter/widgets/recipe_length.dart';
+import 'package:scrontch_flutter/widgets/unselectable_clock_icon.dart';
 import 'package:scrontch_flutter/widgets/star_rating.dart';
 import 'package:scrontch_flutter/widgets/unselectable_chip.dart';
 import 'package:scrontch_flutter/widgets/unselectable_chip_icon.dart';
@@ -104,7 +104,10 @@ class RecipeBigCard extends StatelessWidget {
                                 rating: rating,
                                 userCount: userCount,
                               ),
-                              RecipeLength(length: recipeLength),
+                              UnselectableClockIcon(
+                                label: recipeLength,
+                                icon: Icons.schedule,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),

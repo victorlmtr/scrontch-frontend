@@ -160,13 +160,208 @@ class _GroceryScreenState extends State<GroceryScreen> {
     }
   }
 
+  Future<void> _addIngredientItem(ShoppingList list, int ingredientId) async {
+    final listId = list.id;
+    if (listId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid shopping list ID')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/$listId/ingredientitems'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'ingredientid': ingredientId,
+          'ingredientitemdescription': '',
+          'shoppinglistid': listId,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        setState(() {
+          shoppingLists = fetchShoppingLists(widget.userId);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ingrédient ajouté avec succès')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de l\'ajout de l\'ingrédient: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteIngredientItem(int itemId, int? shoppingListId) async {
+    if (shoppingListId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid shopping list ID')),
+        );
+      }
+      return;
+    }
+    try {
+      final response = await http.delete(
+        Uri.parse('https://victorl.xyz:8085/api/v1/ingredientitems/$itemId'),
+      );
+
+      if (response.statusCode == 204) {
+        setState(() {
+          shoppingLists = fetchShoppingLists(widget.userId);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ingrédient supprimé avec succès')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de la suppression de l\'ingrédient: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _addNonFoodItem(ShoppingList list, String name, String description) async {
+    final listId = list.id;
+    if (listId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid shopping list ID')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/$listId/nonfooditems'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'nonfooditemname': name,
+          'nonfooditemdescription': description,
+          'shoppinglistid': listId,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        setState(() {
+          shoppingLists = fetchShoppingLists(widget.userId);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Article non-alimentaire ajouté avec succès')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de l\'ajout de l\'article non-alimentaire: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteNonFoodItem(int itemId, int? shoppingListId) async {
+    if (shoppingListId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid shopping list ID')),
+        );
+      }
+      return;
+    }
+    try {
+      final response = await http.delete(
+        Uri.parse('https://victorl.xyz:8085/api/v1/nonfooditems/$itemId'),
+      );
+
+      if (response.statusCode == 204) {
+        setState(() {
+          shoppingLists = fetchShoppingLists(widget.userId);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Article non-alimentaire supprimé avec succès')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de la suppression de l\'article non-alimentaire: ${response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _clearSearch() {
     setState(() {
       searchTerm = '';
       _searchController.clear();
     });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +488,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                                 IconButton(
                                                   icon: const Icon(Icons.delete),
                                                   onPressed: () {
-                                                    // Handle delete
+                                                    _deleteIngredientItem(item.id, list.id);
                                                   },
                                                 ),
                                               ],
@@ -302,6 +497,13 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                         );
                                       },
                                     )).toList(),
+
+                                // Add Ingredient Button
+                                TextButton.icon(
+                                  onPressed: () => _showIngredientSearch(list),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Ajouter un ingrédient'),
+                                ),
 
                                 // Non-Food Items Section
                                 const Divider(height: 32),
@@ -349,7 +551,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                             IconButton(
                                               icon: const Icon(Icons.delete),
                                               onPressed: () {
-                                                // Handle delete
+                                                _deleteNonFoodItem(item.id, list.id);
                                               },
                                             ),
                                           ],
@@ -359,7 +561,10 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
                                 // Add Non-Food Item Button
                                 TextButton.icon(
-                                  onPressed: () => _addNonFoodItem(list),
+                                  onPressed: () {
+                                    // Show dialog to add non-food item
+                                    _showAddNonFoodItemDialog(list);
+                                  },
                                   icon: const Icon(Icons.add),
                                   label: const Text('Ajouter un article'),
                                 ),
@@ -384,22 +589,6 @@ class _GroceryScreenState extends State<GroceryScreen> {
         tooltip: 'Create New Shopping List',
       ),
     );
-  }
-
-  void _addIngredientItem(ShoppingList list, int ingredientId) {
-    // Add API call to create new ingredient item
-    // Update the UI after successful creation
-    setState(() {
-      shoppingLists = fetchShoppingLists(widget.userId);
-    });
-  }
-
-  void _addNonFoodItem(ShoppingList list) {
-    // Add API call to create new non-food item
-    // Update the UI after successful creation
-    setState(() {
-      shoppingLists = fetchShoppingLists(widget.userId);
-    });
   }
 
   void _showIngredientSearch(ShoppingList list) {
@@ -458,6 +647,51 @@ class _GroceryScreenState extends State<GroceryScreen> {
       },
     );
   }
+
+  void _showAddNonFoodItemDialog(ShoppingList list) {
+    String name = '';
+    String description = '';
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Ajouter un article non-alimentaire'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Nom de l\'article',
+                ),
+                onChanged: (value) {
+                  name = value;
+                },
+              ),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                ),
+                onChanged: (value) {
+                  description = value;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () {
+                _addNonFoodItem(list, name, description);
+                Navigator.pop(context);
+              },
+              child: const Text('Ajouter'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
-
-
