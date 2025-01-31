@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_service.dart';
 import '../models/ingredient.dart';
@@ -23,6 +24,202 @@ class _GroceryScreenState extends State<GroceryScreen> {
   TextEditingController searchController = TextEditingController();
   String searchTerm = '';
   late Future<List<dynamic>> futureData;
+  Map<int, bool> checkedIngredients = {};
+  String get _checkedIngredientsKey => 'checked_ingredients_${widget.userId}';
+  String _getListSpecificKey(int listId) => '${_checkedIngredientsKey}_$listId';
+  bool showCheckedItems = false;
+  Map<int, bool> checkedNonFoodItems = {};
+  String get _checkedNonFoodItemsKey => 'checked_nonfood_${widget.userId}';
+  String _getListSpecificNonFoodKey(int listId) => '${_checkedNonFoodItemsKey}_$listId';
+
+  Future<void> _saveCheckedIngredients(int listId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final checkedItemsForList = Map<String, bool>.from(
+        checkedIngredients.map((key, value) => MapEntry(key.toString(), value))
+    );
+    await prefs.setString(_getListSpecificKey(listId), jsonEncode(checkedItemsForList));
+  }
+
+  Future<void> _handleEssentialIngredients() async {
+    try {
+      // Wait for ingredients to load first
+      if (allIngredients.isEmpty) {
+        await _loadIngredients();
+      }
+
+      final essentialIngredients = await _apiService.fetchEssentialIngredients(widget.userId);
+      final pantryIngredients = await _apiService.fetchUserPantry(widget.userId);
+
+      // Find essential ingredients not in pantry
+      final missingEssentials = essentialIngredients.where((essential) =>
+      !pantryIngredients.any((pantry) => pantry.id == essential.id)
+      ).toList();
+
+      if (missingEssentials.isEmpty) {
+        return;
+      }
+
+      // Get or create first shopping list
+      List<ShoppingList> lists = await fetchShoppingLists(widget.userId);
+      ShoppingList? firstList;
+
+      if (lists.isEmpty) {
+        // Create new list
+        final newList = ShoppingList(
+          userId: widget.userId,
+          name: 'Liste principale',
+          ingredientItems: [],
+          nonFoodItems: [],
+        );
+
+        final response = await http.post(
+          Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(newList.toJson()),
+        );
+
+        if (response.statusCode == 201) {
+          firstList = ShoppingList.fromJson(jsonDecode(response.body));
+          lists = [firstList]; // Update lists with the new list
+        } else {
+          throw Exception('Failed to create shopping list');
+        }
+      } else {
+        firstList = lists.first;
+      }
+
+      if (firstList?.id == null) {
+        throw Exception('Invalid shopping list ID');
+      }
+
+      for (var ingredient in missingEssentials) {
+        if (!firstList!.ingredientItems.any((item) => item.ingredientId == ingredient.id)) {
+          await _addIngredientItem(firstList!, ingredient.id);
+        }
+      }
+
+      setState(() {
+        shoppingLists = fetchShoppingLists(widget.userId);
+      });
+    } catch (e) {
+      print('Error handling essential ingredients: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'ajout des articles essentiels: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadCheckedIngredients(int listId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? savedData = prefs.getString(_getListSpecificKey(listId));
+      if (savedData != null) {
+        final Map<String, dynamic> checkedItems = jsonDecode(savedData);
+        setState(() {
+          checkedIngredients.addAll(
+              checkedItems.map((key, value) => MapEntry(int.parse(key), value as bool))
+          );
+        });
+      }
+    } catch (e) {
+      print('Error loading checked ingredients: $e');
+    }
+  }
+
+  Future<void> _saveCheckedNonFoodItems(int listId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final checkedItemsForList = Map<String, bool>.from(
+        checkedNonFoodItems.map((key, value) => MapEntry(key.toString(), value))
+    );
+    await prefs.setString(_getListSpecificNonFoodKey(listId), jsonEncode(checkedItemsForList));
+  }
+
+  Future<void> _loadCheckedNonFoodItems(int listId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? savedData = prefs.getString(_getListSpecificNonFoodKey(listId));
+      if (savedData != null) {
+        final Map<String, dynamic> checkedItems = jsonDecode(savedData);
+        setState(() {
+          checkedNonFoodItems.addAll(
+              checkedItems.map((key, value) => MapEntry(int.parse(key), value as bool))
+          );
+        });
+      }
+    } catch (e) {
+      print('Error loading checked non-food items: $e');
+    }
+  }
+
+  Future<void> _handleNonFoodCheckboxChanged(int itemId, bool? value, ShoppingList list) async {
+    if (value == null || list.id == null) return;
+
+    setState(() {
+      checkedNonFoodItems[itemId] = value;
+    });
+
+    await _saveCheckedNonFoodItems(list.id!);
+  }
+
+
+
+  Future<void> _handleCheckboxChanged(int itemId, bool? value, ShoppingList list) async {
+    if (value == null || list.id == null) return;
+
+    setState(() {
+      checkedIngredients[itemId] = value;
+    });
+
+    // Save state after updating
+    await _saveCheckedIngredients(list.id!);
+
+    if (value) {
+      try {
+        final ingredient = list.ingredientItems.firstWhere((item) => item.id == itemId);
+        await _apiService.addUserIngredient(ingredient.ingredientId, widget.userId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ingredient added to pantry')),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          checkedIngredients[itemId] = false;
+        });
+        await _saveCheckedIngredients(list.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to add to pantry: $e')),
+          );
+        }
+      }
+    } else {
+      try {
+        final ingredient = list.ingredientItems.firstWhere((item) => item.id == itemId);
+        await _apiService.removeUserIngredient(ingredient.ingredientId, widget.userId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ingredient removed from pantry')),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          checkedIngredients[itemId] = true;
+        });
+        await _saveCheckedIngredients(list.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to remove from pantry: $e')),
+          );
+        }
+      }
+    }
+  }
 
   Future<String> getIngredientName(int ingredientId) async {
     if (allIngredients.isEmpty) {
@@ -56,9 +253,33 @@ class _GroceryScreenState extends State<GroceryScreen> {
   @override
   void initState() {
     super.initState();
-    shoppingLists = fetchShoppingLists(widget.userId);
-    futureData = _apiService.fetchIngredients();
-    _loadIngredients();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      shoppingLists = fetchShoppingLists(widget.userId);
+      futureData = _apiService.fetchIngredients();
+      await _loadIngredients();
+      await _initializeListData();
+      await _handleEssentialIngredients();
+    } catch (e) {
+      print('Error initializing data: $e');
+    }
+  }
+
+  Future<void> _initializeListData() async {
+    try {
+      final lists = await shoppingLists;
+      for (var list in lists) {
+        if (list.id != null) {
+          await _loadCheckedIngredients(list.id!);
+          await _loadCheckedNonFoodItems(list.id!);
+        }
+      }
+    } catch (e) {
+      print('Error initializing list data: $e');
+    }
   }
 
   Future<void> _loadIngredients() async {
@@ -81,6 +302,60 @@ class _GroceryScreenState extends State<GroceryScreen> {
     } else {
       throw Exception('Failed to load shopping lists');
     }
+  }
+
+  Future<void> _clearCheckedItems(ShoppingList list) async {
+    if (list.id == null) return;
+    final checkedItemsInList = list.ingredientItems
+        .where((item) => checkedIngredients[item.id] ?? false)
+        .toList();
+
+    for (var item in checkedItemsInList) {
+      try {
+        await _deleteIngredientItem(item.id, list.id);
+      } catch (e) {
+        print('Error removing ingredient from pantry: $e');
+      }
+    }
+
+    setState(() {
+      for (var item in checkedItemsInList) {
+        checkedIngredients.remove(item.id);
+      }
+    });
+    await _saveCheckedIngredients(list.id!);
+
+    setState(() {
+      shoppingLists = fetchShoppingLists(widget.userId);
+    });
+  }
+
+  Future<void> _clearCheckedNonFoodItems(ShoppingList list) async {
+    if (list.id == null) return;
+
+    final checkedItemsInList = list.nonFoodItems
+        .where((item) => checkedNonFoodItems[item.id] ?? false)
+        .toList();
+
+    for (var item in checkedItemsInList) {
+      try {
+        await _deleteNonFoodItem(item.id, list.id);
+      } catch (e) {
+        print('Error removing non-food item: $e');
+      }
+    }
+
+    setState(() {
+      for (var item in checkedItemsInList) {
+        checkedNonFoodItems.remove(item.id);
+      }
+    });
+
+    await _saveCheckedNonFoodItems(list.id!);
+
+    setState(() {
+      shoppingLists = fetchShoppingLists(widget.userId);
+    });
   }
 
   Future<void> createNewShoppingList() async {
@@ -171,6 +446,15 @@ class _GroceryScreenState extends State<GroceryScreen> {
       return;
     }
 
+    if (list.ingredientItems.any((item) => item.ingredientId == ingredientId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cet ingrédient est déjà dans la liste')),
+        );
+      }
+      return;
+    }
+
     try {
       final response = await http.post(
         Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/$listId/ingredientitems'),
@@ -229,8 +513,10 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
       if (response.statusCode == 204) {
         setState(() {
+          checkedIngredients.remove(itemId);
           shoppingLists = fetchShoppingLists(widget.userId);
         });
+        await _saveCheckedIngredients(shoppingListId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Ingrédient supprimé avec succès')),
@@ -327,8 +613,10 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
       if (response.statusCode == 204) {
         setState(() {
+          checkedNonFoodItems.remove(itemId);
           shoppingLists = fetchShoppingLists(widget.userId);
         });
+        await _saveCheckedNonFoodItems(shoppingListId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Article non-alimentaire supprimé avec succès')),
@@ -450,53 +738,108 @@ class _GroceryScreenState extends State<GroceryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 // Ingredient Items Section
-                                Text('Ingrédients',
-                                    style: Theme.of(context).textTheme.titleLarge),
+                                Text('Ingrédients', style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 8),
-                                ...list.ingredientItems.map((item) =>
-                                    FutureBuilder<String>(
-                                      future: getIngredientName(item.ingredientId),
-                                      builder: (context, snapshot) {
-                                        return Card(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: Row(
-                                              children: [
-                                                Checkbox(
-                                                  value: false,
-                                                  onChanged: (bool? value) {
-                                                    // Handle checkbox state
-                                                  },
+
+// Unchecked items
+                                ...list.ingredientItems
+                                    .where((item) => !(checkedIngredients[item.id] ?? false))
+                                    .map((item) => FutureBuilder<String>(
+                                  future: getIngredientName(item.ingredientId),
+                                  builder: (context, snapshot) {
+                                    return Card(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Row(
+                                          children: [
+                                            Checkbox(
+                                              value: checkedIngredients[item.id] ?? false,
+                                              onChanged: (bool? value) {
+                                                _handleCheckboxChanged(item.id, value, list);
+                                              },
+                                            ),
+                                            Expanded(
+                                              flex: 2,
+                                              child: Text(snapshot.data ?? 'Loading...'),
+                                            ),
+                                            Expanded(
+                                              flex: 3,
+                                              child: TextField(
+                                                controller: TextEditingController(text: item.description),
+                                                decoration: const InputDecoration(
+                                                  hintText: 'Description',
                                                 ),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(snapshot.data ?? 'Loading...'),
-                                                ),
-                                                Expanded(
-                                                  flex: 3,
-                                                  child: TextField(
-                                                    controller: TextEditingController(
-                                                        text: item.description),
-                                                    decoration: const InputDecoration(
-                                                      hintText: 'Description',
-                                                    ),
-                                                    onChanged: (value) {
-                                                      // Update description
-                                                    },
+                                                onChanged: (value) {
+                                                  // Update description
+                                                },
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete),
+                                              onPressed: () {
+                                                _deleteIngredientItem(item.id, list.id);
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ))
+                                    .toList(),
+                                ExpansionTile(
+                                  title: Row(
+                                    children: [
+                                      const Text('↓ Checked items'),
+                                      const SizedBox(width: 8),
+                                      TextButton(
+                                        onPressed: () => _clearCheckedItems(list),
+                                        child: const Text('Clear all'),
+                                      ),
+                                    ],
+                                  ),
+                                  children: list.ingredientItems
+                                      .where((item) => checkedIngredients[item.id] ?? false)
+                                      .map((item) => FutureBuilder<String>(
+                                    future: getIngredientName(item.ingredientId),
+                                    builder: (context, snapshot) {
+                                      return Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Row(
+                                            children: [
+                                              Checkbox(
+                                                value: true,
+                                                onChanged: (bool? value) {
+                                                  _handleCheckboxChanged(item.id, value, list);
+                                                },
+                                              ),
+                                              Expanded(
+                                                flex: 2,
+                                                child: Text(
+                                                  snapshot.data ?? 'Loading...',
+                                                  style: const TextStyle(
+                                                    decoration: TextDecoration.lineThrough,
                                                   ),
                                                 ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.delete),
-                                                  onPressed: () {
-                                                    _deleteIngredientItem(item.id, list.id);
-                                                  },
+                                              ),
+                                              Expanded(
+                                                flex: 3,
+                                                child: Text(
+                                                  item.description ?? '',
+                                                  style: const TextStyle(
+                                                    decoration: TextDecoration.lineThrough,
+                                                  ),
                                                 ),
-                                              ],
-                                            ),
+                                              ),
+                                            ],
                                           ),
-                                        );
-                                      },
-                                    )).toList(),
+                                        ),
+                                      );
+                                    },
+                                  ))
+                                      .toList(),
+                                ),
 
                                 // Add Ingredient Button
                                 TextButton.icon(
@@ -510,56 +853,102 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                 Text('Articles non-alimentaires',
                                     style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 8),
-                                ...list.nonFoodItems.map((item) =>
-                                    Card(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Row(
-                                          children: [
-                                            Checkbox(
-                                              value: false,
-                                              onChanged: (bool? value) {
-                                                // Handle checkbox state
-                                              },
-                                            ),
-                                            Expanded(
-                                              flex: 2,
-                                              child: TextField(
-                                                controller: TextEditingController(
-                                                    text: item.name),
-                                                decoration: const InputDecoration(
-                                                  hintText: 'Nom de l\'article',
-                                                ),
-                                                onChanged: (value) {
-                                                  // Update name
-                                                },
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: TextField(
-                                                controller: TextEditingController(
-                                                    text: item.description),
-                                                decoration: const InputDecoration(
-                                                  hintText: 'Description',
-                                                ),
-                                                onChanged: (value) {
-                                                  // Update description
-                                                },
-                                              ),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.delete),
-                                              onPressed: () {
-                                                _deleteNonFoodItem(item.id, list.id);
-                                              },
-                                            ),
-                                          ],
+                                ...list.nonFoodItems
+                                    .where((item) => !(checkedNonFoodItems[item.id] ?? false))
+                                    .map((item) => Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        Checkbox(
+                                          value: checkedNonFoodItems[item.id] ?? false,
+                                          onChanged: (bool? value) {
+                                            _handleNonFoodCheckboxChanged(item.id, value, list);
+                                          },
                                         ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: TextField(
+                                            controller: TextEditingController(text: item.name),
+                                            decoration: const InputDecoration(
+                                              hintText: 'Nom de l\'article',
+                                            ),
+                                            onChanged: (value) {
+                                              // Update name
+                                            },
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 3,
+                                          child: TextField(
+                                            controller: TextEditingController(text: item.description),
+                                            decoration: const InputDecoration(
+                                              hintText: 'Description',
+                                            ),
+                                            onChanged: (value) {
+                                              // Update description
+                                            },
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete),
+                                          onPressed: () {
+                                            _deleteNonFoodItem(item.id, list.id);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ))
+                                    .toList(),
+                                ExpansionTile(
+                                  title: Row(
+                                    children: [
+                                      const Text('↓ Checked non-food items'),
+                                      const SizedBox(width: 8),
+                                      TextButton(
+                                        onPressed: () => _clearCheckedNonFoodItems(list),
+                                        child: const Text('Clear non-food'),
                                       ),
-                                    )).toList(),
-
-                                // Add Non-Food Item Button
+                                    ],
+                                  ),
+                                  children: list.nonFoodItems
+                                      .where((item) => checkedNonFoodItems[item.id] ?? false)
+                                      .map((item) => Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Row(
+                                        children: [
+                                          Checkbox(
+                                            value: true,
+                                            onChanged: (bool? value) {
+                                              _handleNonFoodCheckboxChanged(item.id, value, list);
+                                            },
+                                          ),
+                                          Expanded(
+                                            flex: 2,
+                                            child: Text(
+                                              item.name,
+                                              style: const TextStyle(
+                                                decoration: TextDecoration.lineThrough,
+                                              ),
+                                            ),
+                                          ),
+                                          Expanded(
+                                            flex: 3,
+                                            child: Text(
+                                              item.description ?? '',
+                                              style: const TextStyle(
+                                                decoration: TextDecoration.lineThrough,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ))
+                                      .toList(),
+                                ),
                                 TextButton.icon(
                                   onPressed: () {
                                     // Show dialog to add non-food item
