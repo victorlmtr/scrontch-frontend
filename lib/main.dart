@@ -3,7 +3,6 @@ import 'package:scrontch_flutter/screens/home_screen.dart';
 import 'package:scrontch_flutter/screens/pantry_screen.dart';
 import 'package:scrontch_flutter/screens/profile_screen.dart';
 import 'package:scrontch_flutter/screens/recipes_screen.dart';
-import 'package:scrontch_flutter/screens/temporary_test_screen.dart';
 import 'package:scrontch_flutter/services/navigation_service.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
 import 'util.dart';

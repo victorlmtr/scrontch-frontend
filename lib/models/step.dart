@@ -39,4 +39,16 @@ class RecipeStep {
       rethrow;
     }
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'instructions': instructions,
+      'length': length,
+      'image': image,
+      'steporder': stepOrder,
+      'stepingredients': stepIngredients.map((ingredient) => ingredient.toJson()).toList(),
+    };
+  }
 }

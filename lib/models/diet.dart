@@ -16,6 +16,13 @@ class Diet {
       icon: json['icon'] ?? '',
     );
   }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'dietname': name,
+      'icon': icon,
+    };
+  }
 }
 
 class UserDiet {

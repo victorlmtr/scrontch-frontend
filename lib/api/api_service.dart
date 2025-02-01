@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../models/country.dart';
 import '../models/diet.dart';
 import '../models/ingredient.dart';
+import '../models/recipe_type.dart';
 
 class ApiService {
   static const String _host = 'victorl.xyz';
@@ -66,11 +68,12 @@ class ApiService {
     }
   }
 
-  Future<List<dynamic>> fetchDiets() async {
+  Future<List<Diet>> fetchDiets() async {
     final response = await http.get(Uri.parse(_buildUrl('diets', '/diets')));
     if (response.statusCode == 200) {
       final decodedBody = utf8.decode(response.bodyBytes);
-      return jsonDecode(decodedBody);
+      final List<dynamic> data = jsonDecode(decodedBody);
+      return data.map((json) => Diet.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load diets');
     }
@@ -118,6 +121,39 @@ class ApiService {
 
     if (response.statusCode != 201) {
       throw Exception('Failed to add user ingredient: ${response.body}');
+    }
+  }
+
+  Future<List<RecipeType>> fetchTypes() async {
+    final response = await http.get(
+      Uri.parse('https://victorl.xyz:8084/api/v1/types'),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => RecipeType.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load types');
+  }
+
+  Future<List<Country>> fetchCountries() async {
+    final response = await http.get(
+      Uri.parse('https://victorl.xyz:8084/api/v1/countries'),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => Country.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load countries');
+  }
+
+  Future<void> createRecipe(Map<String, dynamic> recipeData) async {
+    final response = await http.post(
+      Uri.parse('https://victorl.xyz:8084/api/v1/recipes'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(recipeData),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create recipe');
     }
   }
 

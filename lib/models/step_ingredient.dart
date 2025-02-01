@@ -56,4 +56,15 @@ class StepIngredient {
       rethrow;
     }
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'ingredientid': ingredient?.id,
+      'quantity': quantity,
+      'isoptional': isOptional,
+      'unitid': unit.id,
+      'preparationid': preparationMethod.id,
+    };
+  }
+
 }

@@ -15,6 +15,7 @@ import '../models/recipe_type.dart';
 import '../models/step.dart';
 import '../widgets/home_header_card.dart';
 import '../widgets/recipe_big_card.dart';
+import 'add_recipe_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -416,6 +417,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<int> _calculateMissingIngredients(Recipe recipe, int userId) async {
+    try {
+      // Fetch user's pantry
+      final pantryIngredients = await _apiService.fetchUserPantry(userId);
+      final pantryIngredientIds = pantryIngredients.map((p) => p.id).toSet();
+
+      // Get all unique ingredients needed for the recipe
+      final recipeIngredientIds = recipe.recipeSteps
+          .expand((step) => step.stepIngredients)
+          .where((stepIngredient) => stepIngredient.ingredient != null && !stepIngredient.isOptional)
+          .map((stepIngredient) => stepIngredient.ingredient!.id)
+          .toSet();
+
+      // Calculate missing ingredients
+      final missingCount = recipeIngredientIds
+          .where((id) => !pantryIngredientIds.contains(id))
+          .length;
+
+      return missingCount;
+    } catch (e) {
+      print('Error calculating missing ingredients: $e');
+      return 0;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -446,11 +472,16 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             final recipe = _recipes[index - 1];
             return FutureBuilder(
-              future: _updateRecipeDiets(recipe),
-              builder: (context, snapshot) {
+              future: Future.wait([
+                _updateRecipeDiets(recipe),
+                _isLoggedIn ? _calculateMissingIngredients(recipe, _userId ?? -1) : Future.value(0),
+              ]),
+              builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
+
+                final missingIngredientsCount = _isLoggedIn ? (snapshot.data?[1] as int?) ?? 0 : 0;
 
                 return RecipeBigCard(
                   recipeName: recipe.name,
@@ -469,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   recipeLength: recipe.formattedTotalTime,
                   userCount: 21,
                   rating: 3.5,
-                  badgeCount: 6,
+                  badgeCount: missingIngredientsCount,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -490,8 +521,14 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: _isLoggedIn
           ? FloatingActionButton(
         onPressed: () {
-          // Navigate to create recipe screen
-          // To be implemented
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddRecipeScreen(
+                userId: _userId ?? -1,
+              ),
+            ),
+          );
         },
         child: const Icon(Icons.add),
       )

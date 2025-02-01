@@ -135,7 +135,6 @@ class RecipeBigCard extends StatelessWidget {
             ),
           ),
           // Badge
-          if (badgeCount > 0)
             Positioned(
               top: -4,
               right: 8,
