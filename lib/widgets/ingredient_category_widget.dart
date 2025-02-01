@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/ingredient.dart';
 import '../models/ingredient_category.dart';
+import 'ingredient_details_dialog.dart';
 
 class IngredientCategoryWidget extends StatefulWidget {
   final IngredientCategory category;
   final List<Ingredient> ingredients;
   final void Function(Ingredient ingredient) onIngredientToggle;
   final void Function(Ingredient ingredient) onEssentialToggle;
+  final int userId;
 
   const IngredientCategoryWidget({
     Key? key,
@@ -14,6 +16,7 @@ class IngredientCategoryWidget extends StatefulWidget {
     required this.ingredients,
     required this.onIngredientToggle,
     required this.onEssentialToggle,
+    required this.userId,
   }) : super(key: key);
 
   @override
@@ -149,28 +152,18 @@ class _IngredientCategoryWidgetState extends State<IngredientCategoryWidget> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(ingredient.name),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                if (ingredient.alias.isNotEmpty)
-                  Text(ingredient.alias),
-                if (ingredient.image.isNotEmpty)
-                  Image.network(ingredient.image),
-                if (ingredient.description.isNotEmpty)
-                  Text(ingredient.description),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Fermer'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+        return IngredientDetailsDialog(
+          ingredient: ingredient,
+          userId: widget.userId,
+          onIngredientUpdated: () {
+            setState(() {});
+            if (ingredient.isSelected != ingredient.isSelected) {
+              widget.onIngredientToggle(ingredient);
+            }
+            if (ingredient.isEssential != ingredient.isEssential) {
+              widget.onEssentialToggle(ingredient);
+            }
+          },
         );
       },
     );

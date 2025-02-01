@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final DietService _dietService;
   bool _isLoggedIn = false;
   String _username = '';
+  int? _userId;
   bool _isLoginDialogShown = false;
   List<Recipe> _recipes = [];
   bool _isLoading = true;
@@ -138,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _isLoggedIn = token != null;
       _username = username ?? '';
+      _userId = userId;
     });
 
     if (!_isLoggedIn && !_isLoginDialogShown) {
@@ -358,6 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _isLoggedIn = true;
           _username = data['username'];
+          _userId = data['userid'];
         });
 
         return true;
@@ -473,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       MaterialPageRoute(
                         builder: (context) => RecipeDetailScreen(
                           recipeId: recipe.id,
+                          userId: _userId ?? -1,
                         ),
                       ),
                     );

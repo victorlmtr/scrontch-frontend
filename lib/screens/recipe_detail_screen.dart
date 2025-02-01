@@ -8,13 +8,19 @@ import '../models/step_ingredient.dart';
 import '../models/step.dart';
 import '../utils/french_text_handler.dart';
 import '../utils/number_formatter.dart';
+import '../widgets/ingredient_details_dialog.dart';
 import '../widgets/survey_bottom_bar.dart';
 import '../widgets/survey_top_app_bar.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final int recipeId;
+  final int userId;
 
-  const RecipeDetailScreen({Key? key, required this.recipeId}) : super(key: key);
+  const RecipeDetailScreen({
+    Key? key,
+    required this.recipeId,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   _RecipeDetailScreenState createState() => _RecipeDetailScreenState();
@@ -23,11 +29,56 @@ class RecipeDetailScreen extends StatefulWidget {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late Future<Recipe> _recipeFuture;
   final RecipeService _recipeService = RecipeService(ApiService());
+  final ApiService _apiService = ApiService();
+  List<Ingredient> pantryIngredients = [];
+  List<Ingredient> essentialIngredients = [];
 
   @override
   void initState() {
     super.initState();
-    _recipeFuture = _recipeService.getRecipeById(widget.recipeId);
+    _recipeFuture = _loadRecipeAndPantryData();
+  }
+
+  Future<Recipe> _loadRecipeAndPantryData() async {
+    try {
+      // Load recipe and pantry data in parallel
+      final results = await Future.wait([
+        _recipeService.getRecipeById(widget.recipeId),
+        _apiService.fetchUserPantry(widget.userId),
+        _apiService.fetchEssentialIngredients(widget.userId),
+      ]);
+
+      final recipe = results[0] as Recipe;
+      pantryIngredients = results[1] as List<Ingredient>;
+      essentialIngredients = results[2] as List<Ingredient>;
+
+      // Create sets for quick lookup
+      final pantryIngredientIds = pantryIngredients.map((p) => p.id).toSet();
+      final essentialIngredientIds = essentialIngredients.map((p) => p.id).toSet();
+
+      // Update ingredient status in the recipe
+      for (var step in recipe.recipeSteps) {
+        for (var stepIngredient in step.stepIngredients) {
+          if (stepIngredient.ingredient != null) {
+            stepIngredient.ingredient!.isSelected =
+                pantryIngredientIds.contains(stepIngredient.ingredient!.id);
+            stepIngredient.ingredient!.isEssential =
+                essentialIngredientIds.contains(stepIngredient.ingredient!.id);
+          }
+        }
+      }
+
+      return recipe;
+    } catch (e) {
+      print('Error loading recipe and pantry data: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _refreshRecipe() async {
+    setState(() {
+      _recipeFuture = _loadRecipeAndPantryData();
+    });
   }
 
   @override
@@ -199,6 +250,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildIngredientItem(StepIngredient stepIngredient) {
+    final ingredientName = stepIngredient.ingredient?.name ?? 'Loading...';
+    final startsWithVowel = 'aeiouAEIOU'.contains(ingredientName[0]);
+    final useUnits = stepIngredient.unit.unitName != "unité(s)";
+
     return GestureDetector(
       onLongPress: () {
         if (stepIngredient.ingredient != null) {
@@ -209,79 +264,98 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            if (stepIngredient.ingredient?.image != null &&
-                stepIngredient.ingredient!.image.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  stepIngredient.ingredient!.image,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.image_not_supported,
-                    size: 40,
-                  ),
-                ),
-              ),
-            const SizedBox(width: 8),
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text.rich(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    // Quantity
+                    TextSpan(
+                      text: NumberFormatter.format(stepIngredient.quantity),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    // Space
+                    const TextSpan(text: ' '),
+                    // Unit and "de/d'" if needed
+                    if (useUnits) ...[
                       TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${NumberFormatter.format(stepIngredient.quantity)} '
-                                '${FrenchTextHandler.handleUnitName(stepIngredient.unit.unitName, stepIngredient.quantity)} ',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          TextSpan(
-                            text: stepIngredient.ingredient != null
-                                ? FrenchTextHandler.handlePlural(
-                              stepIngredient.ingredient!.name,
-                              stepIngredient.quantity,
-                            )
-                                : 'Loading...',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (stepIngredient.isOptional)
-                            TextSpan(
-                              text: ' (optionnel)',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          if (stepIngredient.preparationMethod.name.isNotEmpty &&
-                              stepIngredient.preparationMethod.name != 'undefined')
-                            TextSpan(
-                              text: ' - ${FrenchTextHandler.handlePreparationMethod(
-                                stepIngredient.preparationMethod.name,
-                                stepIngredient.ingredient?.isFemale ?? false,
-                                stepIngredient.quantity,
-                              )}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                        ],
+                        text: '${stepIngredient.unit.unitName} ',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      TextSpan(
+                        text: startsWithVowel ? 'd\'' : 'de ',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                    // Ingredient name
+                    TextSpan(
+                      text: ingredientName,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  if (stepIngredient.ingredient != null)
-                    Icon(
-                      stepIngredient.ingredient!.isSelected
-                          ? Icons.check_circle
-                          : Icons.circle_outlined,
-                      color: stepIngredient.ingredient!.isSelected
-                          ? Colors.green
-                          : Colors.grey,
-                      size: 20,
-                    ),
-                ],
+                    // Preparation method
+                    if (stepIngredient.preparationMethod.name.isNotEmpty &&
+                        stepIngredient.preparationMethod.name != 'undefined')
+                      TextSpan(
+                        text: ', ${stepIngredient.preparationMethod.name}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    // Optional indicator
+                    if (stepIngredient.isOptional)
+                      TextSpan(
+                        text: ' (optionnel)',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+            // Pantry status indicator
+            if (stepIngredient.ingredient != null)
+              stepIngredient.ingredient!.isSelected
+                  ? const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 20,
+              )
+                  : IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                color: Colors.blue,
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () async {
+                  try {
+                    await _apiService.addUserIngredient(
+                      stepIngredient.ingredient!.id,
+                      widget.userId,
+                    );
+
+                    // Refresh the recipe data to update all instances of this ingredient
+                    await _refreshRecipe();
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ingrédient ajouté au garde-manger'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erreur lors de l\'ajout: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
           ],
         ),
       ),
@@ -292,133 +366,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return Dialog(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery
-                  .of(context)
-                  .size
-                  .height * 0.8,
-              maxWidth: MediaQuery
-                  .of(context)
-                  .size
-                  .width * 0.9,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    ingredient.name,
-                    style: Theme
-                        .of(context)
-                        .textTheme
-                        .titleLarge,
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (ingredient.image.isNotEmpty)
-                          Container(
-                            constraints: BoxConstraints(
-                              maxHeight: MediaQuery
-                                  .of(context)
-                                  .size
-                                  .height * 0.3,
-                            ),
-                            width: double.infinity,
-                            child: Image.network(
-                              ingredient.image,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child,
-                                  loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes !=
-                                        null
-                                        ? loadingProgress
-                                        .cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                        : null,
-                                  ),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (ingredient.alias.isNotEmpty) ...[
-                                Text(
-                                  'Also known as:',
-                                  style: Theme
-                                      .of(context)
-                                      .textTheme
-                                      .titleSmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  ingredient.alias,
-                                  style: Theme
-                                      .of(context)
-                                      .textTheme
-                                      .bodyMedium,
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                              if (ingredient.description.isNotEmpty) ...[
-                                Text(
-                                  'Description:',
-                                  style: Theme
-                                      .of(context)
-                                      .textTheme
-                                      .titleSmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  ingredient.description,
-                                  style: Theme
-                                      .of(context)
-                                      .textTheme
-                                      .bodyMedium,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                OverflowBar(
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        return IngredientDetailsDialog(
+          ingredient: ingredient,
+          userId: widget.userId,
+          onIngredientUpdated: () {
+            _refreshRecipe();
+          },
         );
       },
     );
