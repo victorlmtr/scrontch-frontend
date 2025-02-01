@@ -31,6 +31,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
   Map<int, bool> checkedNonFoodItems = {};
   String get _checkedNonFoodItemsKey => 'checked_nonfood_${widget.userId}';
   String _getListSpecificNonFoodKey(int listId) => '${_checkedNonFoodItemsKey}_$listId';
+  Map<int, TextEditingController> _descriptionControllers = {};
 
   Future<void> _saveCheckedIngredients(int listId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -175,7 +176,6 @@ class _GroceryScreenState extends State<GroceryScreen> {
       checkedIngredients[itemId] = value;
     });
 
-    // Save state after updating
     await _saveCheckedIngredients(list.id!);
 
     if (value) {
@@ -221,6 +221,26 @@ class _GroceryScreenState extends State<GroceryScreen> {
     }
   }
 
+  Future<void> _updateIngredientItemDescription(int itemId, int? shoppingListId, String description) async {
+    if (shoppingListId == null) {
+      throw Exception('Invalid shopping list ID');
+    }
+
+    final response = await http.put(
+      Uri.parse('https://victorl.xyz:8085/api/v1/ingredientitems/$itemId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'ingredientId': itemId,
+        'ingredientItemDescription': description,
+        'shoppingListId': shoppingListId,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update description');
+    }
+  }
+
   Future<String> getIngredientName(int ingredientId) async {
     if (allIngredients.isEmpty) {
       final ingredients = await _apiService.fetchIngredients();
@@ -246,6 +266,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
   @override
   void dispose() {
+    _descriptionControllers.values.forEach((controller) => controller.dispose());
     _searchController.dispose();
     super.dispose();
   }
@@ -666,7 +687,6 @@ class _GroceryScreenState extends State<GroceryScreen> {
               length: snapshot.data!.length,
               child: Column(
                 children: [
-                  // Search Bar Section
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: TextField(
@@ -737,11 +757,8 @@ class _GroceryScreenState extends State<GroceryScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Ingredient Items Section
                                 Text('Ingrédients', style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 8),
-
-// Unchecked items
                                 ...list.ingredientItems
                                     .where((item) => !(checkedIngredients[item.id] ?? false))
                                     .map((item) => FutureBuilder<String>(
@@ -750,7 +767,8 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                     return Card(
                                       child: Padding(
                                         padding: const EdgeInsets.all(8.0),
-                                        child: Row(
+                                        child:
+                                        Row(
                                           children: [
                                             Checkbox(
                                               value: checkedIngredients[item.id] ?? false,
@@ -759,23 +777,81 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                               },
                                             ),
                                             Expanded(
-                                              flex: 2,
                                               child: Text(snapshot.data ?? 'Loading...'),
                                             ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: TextField(
-                                                controller: TextEditingController(text: item.description),
-                                                decoration: const InputDecoration(
-                                                  hintText: 'Description',
+                                            if (item.description?.isNotEmpty ?? false)
+                                            // Show description as text if it exists
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                                child: Text(
+                                                  item.description!,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 12,
+                                                  ),
                                                 ),
-                                                onChanged: (value) {
-                                                  // Update description
+                                              )
+                                            else
+                                            // Show small icon button if no description
+                                              IconButton(
+                                                icon: const Icon(Icons.edit_note, size: 16),
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(),
+                                                onPressed: () async {
+                                                  final controller = TextEditingController(text: item.description);
+                                                  final description = await showDialog<String>(
+                                                    context: context,
+                                                    builder: (context) => AlertDialog(
+                                                      title: const Text('Modifier la description'),
+                                                      content: TextField(
+                                                        controller: controller,
+                                                        decoration: const InputDecoration(
+                                                          hintText: 'Description',
+                                                        ),
+                                                        maxLines: null,
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () => Navigator.pop(context),
+                                                          child: const Text('Annuler'),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () => Navigator.pop(context, controller.text),
+                                                          child: const Text('Enregistrer'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+
+                                                  if (description != null) {
+                                                    try {
+                                                      await _updateIngredientItemDescription(item.id, list.id, description);
+                                                      setState(() {
+                                                        shoppingLists = fetchShoppingLists(widget.userId);
+                                                      });
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(content: Text('Description mise à jour')),
+                                                        );
+                                                      }
+                                                    } catch (e) {
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text('Erreur lors de la mise à jour: $e'),
+                                                            backgroundColor: Colors.red,
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  }
+                                                  controller.dispose();
                                                 },
                                               ),
-                                            ),
                                             IconButton(
                                               icon: const Icon(Icons.delete),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
                                               onPressed: () {
                                                 _deleteIngredientItem(item.id, list.id);
                                               },
@@ -790,11 +866,18 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                 ExpansionTile(
                                   title: Row(
                                     children: [
-                                      const Text('↓ Checked items'),
-                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: const Text(
+                                          'Ingrédients cochés',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                       TextButton(
                                         onPressed: () => _clearCheckedItems(list),
-                                        child: const Text('Clear all'),
+                                        child: const Text('Vider la liste'),
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.symmetric(horizontal: 8), // Reduce padding
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -808,28 +891,27 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                           padding: const EdgeInsets.all(8.0),
                                           child: Row(
                                             children: [
-                                              Checkbox(
-                                                value: true,
-                                                onChanged: (bool? value) {
-                                                  _handleCheckboxChanged(item.id, value, list);
-                                                },
-                                              ),
-                                              Expanded(
-                                                flex: 2,
-                                                child: Text(
-                                                  snapshot.data ?? 'Loading...',
-                                                  style: const TextStyle(
-                                                    decoration: TextDecoration.lineThrough,
-                                                  ),
+                                            Checkbox(
+                                            value: true,
+                                            onChanged: (bool? value) {
+                                              _handleCheckboxChanged(item.id, value, list);
+                                            },
+                                          ),
+                                            Expanded(
+                                              child: Text(
+                                                snapshot.data ?? 'Loading...',
+                                                style: const TextStyle(
+                                                  decoration: TextDecoration.lineThrough,
                                                 ),
                                               ),
-                                              Expanded(
-                                                flex: 3,
-                                                child: Text(
-                                                  item.description ?? '',
-                                                  style: const TextStyle(
-                                                    decoration: TextDecoration.lineThrough,
-                                                  ),
+                                            ),
+                                            if (item.description?.isNotEmpty ?? false)
+                                        Text(
+                                        item.description!,
+                                        style: const TextStyle(
+                                          decoration: TextDecoration.lineThrough,
+                                          color: Colors.grey,
+                                          fontSize: 12,
                                                 ),
                                               ),
                                             ],
@@ -904,11 +986,18 @@ class _GroceryScreenState extends State<GroceryScreen> {
                                 ExpansionTile(
                                   title: Row(
                                     children: [
-                                      const Text('↓ Checked non-food items'),
-                                      const SizedBox(width: 8),
+                                      const Flexible(
+                                        child: Text(
+                                          'Checked non-food items',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                       TextButton(
                                         onPressed: () => _clearCheckedNonFoodItems(list),
                                         child: const Text('Clear non-food'),
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.symmetric(horizontal: 8),
+                                        ),
                                       ),
                                     ],
                                   ),

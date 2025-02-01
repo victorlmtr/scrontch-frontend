@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:scrontch_flutter/screens/recipe_list_screen.dart';
 import '../widgets/screen_picker.dart';
 import 'grocery_screen.dart';
 import 'pantry_content_screen.dart';
@@ -13,7 +14,7 @@ class PantryScreen extends StatefulWidget {
 
 class _PantryScreenState extends State<PantryScreen> {
   String _selectedScreen = "Garde-manger";
-  final List<String> _screenOptions = ["Garde-manger", "Liste de courses"];
+  final List<String> _screenOptions = ["Garde-manger", "Liste de courses", "Liste de recettes"];
   final SecureStorageService _secureStorageService = SecureStorageService();
   bool _isLoggedIn = false;
   int? _userId;
@@ -58,26 +59,39 @@ class _PantryScreenState extends State<PantryScreen> {
       );
     }
 
-    // User is logged in, show selected screen
     Widget currentScreen;
-    if (_selectedScreen == "Liste de courses") {
-      currentScreen = GroceryScreen(userId: _userId!);
-    } else {
-      currentScreen = PantryContentScreen(userId: _userId!);
+    switch (_selectedScreen) {
+      case "Liste de courses":
+        currentScreen = GroceryScreen(userId: _userId!);
+        break;
+      case "Liste de recettes":
+        currentScreen = RecipeListScreen(userId: _userId!);
+        break;
+      default:
+        currentScreen = PantryContentScreen(userId: _userId!);
+        break;
     }
 
-    // Return the main scaffold with the selected screen
+    final backgroundColor = Theme.of(context).colorScheme.secondary;
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            ScreenPicker(
-              options: _screenOptions,
-              selectedOption: _selectedScreen,
-              onOptionSelected: _onScreenSelected,
+            Container(
+              color: backgroundColor,
+              child: ScreenPicker(
+                options: _screenOptions,
+                selectedOption: _selectedScreen,
+                onOptionSelected: _onScreenSelected,
+              ),
             ),
             Expanded(
-              child: currentScreen,
+              child: Container(
+                color: Colors.white,
+                child: currentScreen,
+              ),
             ),
           ],
         ),
