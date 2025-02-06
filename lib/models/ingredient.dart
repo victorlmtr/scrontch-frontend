@@ -35,7 +35,6 @@ class Ingredient {
     );
   }
 
-  // Ingredient creation for API calls (send only user-specific data)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
