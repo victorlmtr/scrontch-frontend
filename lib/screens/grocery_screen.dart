@@ -9,6 +9,11 @@ import '../models/shopping_list.dart';
 
 class GroceryScreen extends StatefulWidget {
   final int userId;
+  final Map<String, String> _standardHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8',
+  };
 
   GroceryScreen({required this.userId});
 
@@ -73,9 +78,15 @@ class _GroceryScreenState extends State<GroceryScreen> {
           nonFoodItems: [],
         );
 
+        final Map<String, String> _standardHeaders = {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json',
+          'Accept-Charset': 'utf-8',
+        };
+
         final response = await http.post(
           Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _standardHeaders,
           body: jsonEncode(newList.toJson()),
         );
 
@@ -222,13 +233,18 @@ class _GroceryScreenState extends State<GroceryScreen> {
   }
 
   Future<void> _updateIngredientItemDescription(int itemId, int? shoppingListId, String description) async {
+    final Map<String, String> standardHeaders = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+      'Accept-Charset': 'utf-8',
+    };
     if (shoppingListId == null) {
       throw Exception('Invalid shopping list ID');
     }
 
     final response = await http.put(
       Uri.parse('https://victorl.xyz:8085/api/v1/ingredientitems/$itemId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: standardHeaders,
       body: jsonEncode({
         'ingredientId': itemId,
         'ingredientItemDescription': description,
@@ -410,6 +426,11 @@ class _GroceryScreenState extends State<GroceryScreen> {
     );
 
     if (listName == null || listName.isEmpty) return;
+    final Map<String, String> _standardHeaders = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+      'Accept-Charset': 'utf-8',
+    };
 
     try {
       final newList = ShoppingList(
@@ -421,7 +442,7 @@ class _GroceryScreenState extends State<GroceryScreen> {
 
       final response = await http.post(
         Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _standardHeaders,
         body: jsonEncode(newList.toJson()),
       );
 
@@ -475,11 +496,16 @@ class _GroceryScreenState extends State<GroceryScreen> {
       }
       return;
     }
+    final Map<String, String> _standardHeaders = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+      'Accept-Charset': 'utf-8',
+    };
 
     try {
       final response = await http.post(
         Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/$listId/ingredientitems'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _standardHeaders,
         body: jsonEncode({
           'ingredientid': ingredientId,
           'ingredientitemdescription': '',
@@ -575,11 +601,16 @@ class _GroceryScreenState extends State<GroceryScreen> {
       }
       return;
     }
+    final Map<String, String> _standardHeaders = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+      'Accept-Charset': 'utf-8',
+    };
 
     try {
       final response = await http.post(
         Uri.parse('https://victorl.xyz:8085/api/v1/shoppinglists/$listId/nonfooditems'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _standardHeaders,
         body: jsonEncode({
           'nonfooditemname': name,
           'nonfooditemdescription': description,

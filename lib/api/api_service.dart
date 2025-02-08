@@ -4,11 +4,18 @@ import 'package:http/http.dart' as http;
 import '../models/country.dart';
 import '../models/diet.dart';
 import '../models/ingredient.dart';
+import '../models/preparation_method.dart';
 import '../models/recipe_type.dart';
+import '../models/unit.dart';
 
 class ApiService {
   static const String _host = 'victorl.xyz';
   static const String _apiPath = '/api/v1';
+  final Map<String, String> _standardHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8',
+  };
 
   final Map<String, String> _endpoints = {
     'recipes': '8084',
@@ -17,7 +24,10 @@ class ApiService {
     'shoppinglists': '8085',
     'diets': '8082',
     'users': '8086',
+    'units': '8084',
+    'preparations': '8084',
   };
+
   String getDietsUrl() => _buildUrl('diets', '/diets');
   String getRecipesUrl() => _buildUrl('recipes', '/recipes');
   String getIngredientsUrl() => _buildUrl('ingredients', '/ingredients');
@@ -46,7 +56,7 @@ class ApiService {
 
       final response = await http.get(
         Uri.parse(url),
-        headers: {'Accept-Charset': 'UTF-8'},
+        headers: _standardHeaders,
       );
 
       print('ApiService: Received response with status: ${response.statusCode}');
@@ -112,7 +122,7 @@ class ApiService {
   Future<void> addUserIngredient(int ingredientId, int userId) async {
     final response = await http.post(
       Uri.parse(_buildUrl('users', '/userIngredients')),
-      headers: {'Content-Type': 'application/json'},
+      headers: _standardHeaders,
       body: jsonEncode({
         'ingredientid': ingredientId,
         'userid': userId,
@@ -138,9 +148,15 @@ class ApiService {
   Future<List<Country>> fetchCountries() async {
     final response = await http.get(
       Uri.parse('https://victorl.xyz:8084/api/v1/countries'),
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
+        'Accept-Charset': 'utf-8',
+      },
     );
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> data = json.decode(decodedBody);
       return data.map((json) => Country.fromJson(json)).toList();
     }
     throw Exception('Failed to load countries');
@@ -149,7 +165,7 @@ class ApiService {
   Future<void> createRecipe(Map<String, dynamic> recipeData) async {
     final response = await http.post(
       Uri.parse('https://victorl.xyz:8084/api/v1/recipes'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _standardHeaders,
       body: json.encode(recipeData),
     );
     if (response.statusCode != 201) {
@@ -170,7 +186,7 @@ class ApiService {
   Future<void> addEssentialIngredient(int ingredientId, int userId) async {
     final response = await http.post(
       Uri.parse(_buildUrl('users', '/essentialIngredients')),
-      headers: {'Content-Type': 'application/json'},
+      headers: _standardHeaders,
       body: jsonEncode({
         'ingredientid': ingredientId,
         'userid': userId,
@@ -274,7 +290,7 @@ class ApiService {
   Future<void> createIngredient(Map<String, dynamic> data) async {
     final response = await http.post(
       Uri.parse(_buildUrl('ingredients', '/ingredients')),
-      headers: {'Content-Type': 'application/json'},
+      headers: _standardHeaders,
       body: jsonEncode(data),
     );
 
@@ -286,12 +302,40 @@ class ApiService {
   Future<void> updateIngredient(int id, Map<String, dynamic> data) async {
     final response = await http.put(
       Uri.parse(_buildUrl('ingredients', '/ingredients/$id')),
-      headers: {'Content-Type': 'application/json'},
+      headers: _standardHeaders,
       body: jsonEncode(data),
     );
 
     if (response.statusCode != 200) {
       throw Exception('Failed to update ingredient: ${response.body}');
     }
+  }
+
+  Future<List<Unit>> fetchUnits() async {
+    final response = await http.get(
+      Uri.parse(_buildUrl('units', '/units')),
+      headers: _standardHeaders,
+    );
+
+    if (response.statusCode == 200) {
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> data = json.decode(decodedBody);
+      return data.map((json) => Unit.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load units');
+  }
+
+  Future<List<PreparationMethod>> fetchPreparationMethods() async {
+    final response = await http.get(
+      Uri.parse(_buildUrl('preparations', '/preparationmethods')),
+      headers: _standardHeaders,
+    );
+
+    if (response.statusCode == 200) {
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final List<dynamic> data = json.decode(decodedBody);
+      return data.map((json) => PreparationMethod.fromJson(json)).toList();
+    }
+    throw Exception('Failed to load preparation methods');
   }
 }

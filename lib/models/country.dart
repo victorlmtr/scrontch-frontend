@@ -16,6 +16,13 @@ class Country {
       continent: Continent.fromJson(json['continentid'] ?? {}),
     );
   }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'continentid': continent.toJson(),
+    };
+  }
 }
 
 class Continent {
@@ -32,5 +39,12 @@ class Continent {
       id: json['id'] ?? 0,
       continentName: json['continentname'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'continentname': continentName,
+    };
   }
 }

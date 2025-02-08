@@ -16,4 +16,12 @@ class RecipeType {
       typeIcon: json['typeicon'],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'typename': typeName,
+      'typeicon': typeIcon,
+    };
+  }
 }

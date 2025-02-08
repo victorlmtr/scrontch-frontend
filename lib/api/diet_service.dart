@@ -6,23 +6,26 @@ import 'api_service.dart';
 
 class DietService {
   final ApiService _apiService;
+  final Map<String, String> _standardHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8',
+  };
   final Map<int, Diet> _dietCache = {};
 
   DietService(this._apiService);
 
   Future<void> updateRecipeDietsWithNames(List<RecipeDiet> recipeDiets) async {
-    // Get unique diet IDs that need to be fetched
     final Set<int> uniqueDietIds = recipeDiets
         .where((rd) => !_dietCache.containsKey(rd.dietId))
         .map((rd) => rd.dietId)
         .toSet();
 
-    // Fetch all diets at once if they're not in cache
     if (uniqueDietIds.isNotEmpty) {
       try {
         final response = await http.get(
           Uri.parse(_apiService.getDietsUrl()),
-          headers: {'Accept-Charset': 'UTF-8'},
+          headers: _standardHeaders,
         );
 
         if (response.statusCode == 200) {
