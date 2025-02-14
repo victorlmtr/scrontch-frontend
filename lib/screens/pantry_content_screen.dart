@@ -48,10 +48,6 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
       final essential = await apiService.fetchEssentialIngredients(
           currentUserId);
 
-      print('Pantry data (raw): ${pantry.map((e) => e.toJson()).toList()}');
-      print(
-          'Essential data (raw): ${essential.map((e) => e.toJson()).toList()}');
-
       setState(() {
         pantryIngredients = pantry;
         essentialIngredients = essential;
@@ -250,7 +246,7 @@ class _PantryContentScreenState extends State<PantryContentScreen> {
                             },
                             onEssentialToggle: (ingredient) {
                               _markEssential(ingredient);
-                            },
+                            }, userId: currentUserId,
                           );
                         } else {
                           return const SizedBox.shrink();

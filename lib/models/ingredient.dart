@@ -7,6 +7,7 @@ class Ingredient {
   late final int categoryId;
   bool isSelected;
   bool isEssential;
+  bool isFemale;
 
   Ingredient({
     required this.id,
@@ -17,6 +18,7 @@ class Ingredient {
     required this.categoryId,
     this.isSelected = false,
     this.isEssential = false,
+    this.isFemale = false,
   });
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
@@ -29,10 +31,10 @@ class Ingredient {
       categoryId: json['categoryid'],
       isSelected: json['isSelected'] ?? false,
       isEssential: json['isEssential'] ?? false,
+      isFemale: json['isFemale'] ?? false,
     );
   }
 
-  // Ingredient creation for API calls (send only user-specific data)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -43,6 +45,7 @@ class Ingredient {
       'categoryId': categoryId,
       'isSelected': isSelected,
       'isEssential': isEssential,
+      'isFemale': isFemale,
     };
   }
 }

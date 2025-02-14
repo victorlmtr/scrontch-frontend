@@ -13,7 +13,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
 
   Future<void> _register() async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/register';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/register';
 
     try {
       final response = await http.post(

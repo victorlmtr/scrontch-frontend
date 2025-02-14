@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:scrontch_flutter/screens/recipe_detail_screen.dart';
 import 'package:scrontch_flutter/screens/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api/api_service.dart';
+import '../api/diet_service.dart';
 import '../api/secure_storage_service.dart';
-import 'profile_screen.dart';
+import '../models/country.dart';
+import '../models/recipe.dart';
+import '../models/recipe_diet.dart';
+import '../models/recipe_type.dart';
+import '../models/step.dart';
+import '../widgets/home_header_card.dart';
+import '../widgets/recipe_big_card.dart';
+import 'add_recipe_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -14,17 +24,91 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final SecureStorageService _secureStorageService = SecureStorageService();
+  late final ApiService _apiService;
+  late final DietService _dietService;
   bool _isLoggedIn = false;
   String _username = '';
-  bool _isLoginDialogShown = false; // Flag to track dialog state
+  int? _userId;
+  bool _isLoginDialogShown = false;
+  List<Recipe> _recipes = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
+    _dietService = DietService(_apiService);
     _checkLoginStatus();
+    _loadRecipes();
   }
 
-  // Check if the user is logged in
+  Future<void> _loadRecipes() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://victorl.xyz:8084/api/v1/recipes'),
+        headers: {'Accept-Charset': 'UTF-8'},
+      );
+
+      if (response.statusCode == 200) {
+        final String decodedBody = utf8.decode(response.bodyBytes);
+        final List<dynamic> recipesJson = json.decode(decodedBody);
+
+        final recipes = recipesJson.map((json) {
+          try {
+            final recipeType = RecipeType.fromJson(json['typeid'] ?? {});
+            final countries = (json['countries'] as List?)
+                ?.map((country) => Country.fromJson(country))
+                .toList() ?? [];
+            final recipeDiets = (json['recipediets'] as List?)
+                ?.map((diet) => RecipeDiet.fromJson(diet))
+                .toList() ?? [];
+            final steps = (json['steps'] as List?)
+                ?.map((step) => RecipeStep.fromJson(step))
+                .toList() ?? [];
+
+            return Recipe(
+              id: json['id'] ?? 0,
+              name: json['name'] ?? '',
+              description: json['description'] ?? '',
+              difficulty: json['difficulty'] ?? 0,
+              portions: (json['portions'] ?? 0.0).toDouble(),
+              notes: json['notes'],
+              image: json['image'],
+              createdAt: json['createdat'] != null
+                  ? DateTime.parse(json['createdat'])
+                  : DateTime.now(),
+              updatedAt: json['updatedat'] != null
+                  ? DateTime.parse(json['updatedat'])
+                  : null,
+              type: recipeType,
+              countries: countries,
+              recipeDiets: recipeDiets,
+              recipeSteps: steps,
+              formattedTotalTime: json['formattedTotalTime'] ?? '',
+            );
+          } catch (e, stackTrace) {
+            print('Error parsing recipe: $e\n$stackTrace');
+            rethrow;
+          }
+        }).toList();
+
+        setState(() {
+          _recipes = recipes;
+          _isLoading = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('Error loading recipes: $e\n$stackTrace');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   Future<void> _checkLoginStatus() async {
     String? token;
     String? refreshToken;
@@ -56,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _isLoggedIn = token != null;
       _username = username ?? '';
+      _userId = userId;
     });
 
     if (!_isLoggedIn && !_isLoginDialogShown) {
@@ -65,7 +150,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Save login info
   Future<void> _saveLoginInfo(String token, String username, int userId, String role) async {
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
@@ -81,99 +165,120 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Save flag that login dialog has been shown
-  Future<void> _markLoginDialogAsShown() async {
-    if (kIsWeb) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoginDialogShown', true); // Set flag to true after dialog is shown
+  Future<void> _updateRecipeDiets(Recipe recipe) async {
+    if (recipe.recipeDiets.isNotEmpty) {
+      await _dietService.updateRecipeDietsWithNames(recipe.recipeDiets);
     }
   }
 
-  // Show login dialog if not logged in
+  Future<void> _markLoginDialogAsShown() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoginDialogShown', true);
+    }
+  }
+
   void _showLoginDialog(BuildContext context) {
     String username = '';
     String password = '';
+    bool _passwordVisible = false;
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Login'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                TextField(
-                  decoration: InputDecoration(labelText: 'Username or Email'),
-                  onChanged: (value) {
-                    username = value;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Se connecter'),
+              content: SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Pseudo ou e-mail'),
+                      onChanged: (value) {
+                        username = value;
+                      },
+                    ),
+                    TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Mot de passe',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _passwordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _passwordVisible = !_passwordVisible;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: !_passwordVisible,
+                      onChanged: (value) {
+                        password = value;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Se connecter'),
+                  onPressed: () async {
+                    bool success = await _login(context, username, password);
+
+                    if (success) {
+                      Navigator.of(context).pop();
+                      _markLoginDialogAsShown();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Connexion échouée. Veuillez réessayer.')),
+                      );
+                    }
                   },
                 ),
-                TextField(
-                  decoration: InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                  onChanged: (value) {
-                    password = value;
+                TextButton(
+                  child: const Text('Mot de passe oublié ?'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Créer un compte'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => RegisterScreen()),
+                    );
                   },
                 ),
               ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Login'),
-              onPressed: () async {
-                bool success = await _login(context, username, password);
-
-                if (success) {
-                  Navigator.of(context).pop(); // Close the dialog on success
-                  _markLoginDialogAsShown(); // Mark dialog as shown
-                } else {
-                  // Show an error message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Login failed. Please try again.')),
-                  );
-                }
-              },
-            ),
-            TextButton(
-              child: Text('Forgot Password?'),
-              onPressed: () {
-                Navigator.of(context).pop ();
-              },
-            ),
-            TextButton(
-              child: Text('Create Account'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => RegisterScreen()),
-                );
-              },
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
-  // Logout confirmation dialog
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Logout'),
-          content: Text('Are you sure you want to logout?'),
+          title: const Text('Déconnexion'),
+          content: const Text('Voulez-vous vraiment vous déconnecter ?'),
           actions: <Widget>[
             TextButton(
-              child: Text('Cancel'),
+              child: const Text('Annuler'),
               onPressed: () {
                 Navigator.of(context).pop(); // Close the dialog
               },
             ),
             TextButton(
-              child: Text('Logout'),
+              child: const Text('Se déconnecter'),
               onPressed: () async {
                 await _logout();
                 Navigator.of(context).pop(); // Close the dialog
@@ -186,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/logout';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/logout';
 
     try {
       String? token = await _secureStorageService.read('token');
@@ -195,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      print('Token: $token'); // Debugging: Log the token
+      print('Token: $token');
 
       final response = await http.post(
         Uri.parse(apiUrl),
@@ -204,11 +309,6 @@ class _HomeScreenState extends State<HomeScreen> {
           'Authorization': 'Bearer $token',
         },
       );
-
-      print('Headers: ${{
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      }}'); // Debugging: Log the headers
 
       if (response.statusCode == 200) {
         if (kIsWeb) {
@@ -227,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         print('Failed to logout. Status code: ${response.statusCode}');
-        print('Response body: ${response.body}'); // Debugging: Log response body
+        print('Response body: ${response.body}');
       }
     } catch (e) {
       print('Error occurred while logging out: $e');
@@ -235,9 +335,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // Login API Call
   Future<bool> _login(BuildContext context, String username, String password) async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/login';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/login';
 
     try {
       final response = await http.post(
@@ -251,8 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // Save token, refresh token, username, and user ID
         await _saveLoginInfo(data['token'], data['username'], data['userid'], data['role']);
         if (kIsWeb) {
           final prefs = await SharedPreferences.getInstance();
@@ -264,6 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _isLoggedIn = true;
           _username = data['username'];
+          _userId = data['userid'];
         });
 
         return true;
@@ -280,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   Future<String?> _refreshToken(String? refreshToken) async {
-    const String apiUrl = 'http://victorl.xyz:8086/api/v1/auth/refresh-token';
+    const String apiUrl = 'https://victorl.xyz:8086/api/v1/auth/refresh-token';
 
     if (refreshToken == null || refreshToken.isEmpty) {
       return null;
@@ -298,7 +396,6 @@ class _HomeScreenState extends State<HomeScreen> {
         String newToken = data['accessToken'];
         String newRefreshToken = data['refreshToken'];
 
-        // Save new tokens
         if (kIsWeb) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', newToken);
@@ -320,31 +417,122 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<int> _calculateMissingIngredients(Recipe recipe, int userId) async {
+    try {
+      // Fetch user's pantry
+      final pantryIngredients = await _apiService.fetchUserPantry(userId);
+      final pantryIngredientIds = pantryIngredients.map((p) => p.id).toSet();
+
+      // Get all unique ingredients needed for the recipe
+      final recipeIngredientIds = recipe.recipeSteps
+          .expand((step) => step.stepIngredients)
+          .where((stepIngredient) => stepIngredient.ingredient != null && !stepIngredient.isOptional)
+          .map((stepIngredient) => stepIngredient.ingredient!.id)
+          .toSet();
+
+      // Calculate missing ingredients
+      final missingCount = recipeIngredientIds
+          .where((id) => !pantryIngredientIds.contains(id))
+          .length;
+
+      return missingCount;
+    } catch (e) {
+      print('Error calculating missing ingredients: $e');
+      return 0;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Home Screen'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.person),
-            onPressed: () {
-              if (_isLoggedIn) {
-                _showLogoutDialog(context); // Show logout dialog if logged in
-              } else {
-                _showLoginDialog(context); // Show login dialog if logged out
-              }
-            },
-          ),
-        ],
-      ),
-      body: Center(
-        child: Text(
-          _isLoggedIn ? 'Welcome $_username!' : 'Welcome!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: _loadRecipes,
+        child: ListView.builder(
+          padding: EdgeInsets.zero,
+          itemCount: _recipes.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return HomeHeaderCard(
+                isLoggedIn: _isLoggedIn,
+                username: _username,
+                onSearch: (query) {
+                  print('Search query: $query');
+                },
+              onProfileTap: () {
+                if (_isLoggedIn) {
+                  _showLogoutDialog(context);
+                } else {
+                  _showLoginDialog(context);
+                  }
+                },
+              );
+            }
+            final recipe = _recipes[index - 1];
+            return FutureBuilder(
+              future: Future.wait([
+                _updateRecipeDiets(recipe),
+                _isLoggedIn ? _calculateMissingIngredients(recipe, _userId ?? -1) : Future.value(0),
+              ]),
+              builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final missingIngredientsCount = _isLoggedIn ? (snapshot.data?[1] as int?) ?? 0 : 0;
+
+                return RecipeBigCard(
+                  recipeName: recipe.name,
+                  imageRes: recipe.image,
+                  chipLabel1: recipe.type.typeName,
+                  chipLabel2: recipe.recipeDiets.isNotEmpty
+                      ? recipe.recipeDiets.first.dietName ?? ''
+                      : '',
+                  chipLabel3: recipe.countries.isNotEmpty
+                      ? recipe.countries.first.name
+                      : '',
+                  chipIcon1: recipe.type.typeIcon ?? '',
+                  chipIcon2: recipe.recipeDiets.isNotEmpty
+                      ? recipe.recipeDiets.first.dietIcon ?? ''
+                      : '',
+                  recipeLength: recipe.formattedTotalTime,
+                  userCount: 21,
+                  rating: 3.5,
+                  badgeCount: missingIngredientsCount,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RecipeDetailScreen(
+                          recipeId: recipe.id,
+                          userId: _userId ?? -1,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
       ),
+      floatingActionButton: _isLoggedIn
+          ? FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddRecipeScreen(
+                userId: _userId ?? -1,
+              ),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      )
+          : null,
     );
   }
 }

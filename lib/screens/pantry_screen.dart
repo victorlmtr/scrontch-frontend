@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:scrontch_flutter/screens/recipe_list_screen.dart';
 import '../widgets/screen_picker.dart';
 import 'grocery_screen.dart';
 import 'pantry_content_screen.dart';
@@ -12,7 +14,7 @@ class PantryScreen extends StatefulWidget {
 
 class _PantryScreenState extends State<PantryScreen> {
   String _selectedScreen = "Garde-manger";
-  final List<String> _screenOptions = ["Garde-manger", "Liste de courses"];
+  final List<String> _screenOptions = ["Garde-manger", "Liste de courses", "Liste de recettes"];
   final SecureStorageService _secureStorageService = SecureStorageService();
   bool _isLoggedIn = false;
   int? _userId;
@@ -24,8 +26,15 @@ class _PantryScreenState extends State<PantryScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // Check if the user is logged in and retrieve userId
-    String? userIdString = await _secureStorageService.read('userId');
+    String? userIdString;
+
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      userIdString = prefs.getInt('userId')?.toString();
+    } else {
+      userIdString = await _secureStorageService.read('userId');
+    }
+
     setState(() {
       _isLoggedIn = userIdString != null;
       _userId = _isLoggedIn ? int.tryParse(userIdString!) : null;
@@ -40,34 +49,49 @@ class _PantryScreenState extends State<PantryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Widget currentScreen;
-    if (_selectedScreen == "Liste de courses") {
-      currentScreen = GroceryScreen(userId: _userId!,);
-    } else {
-      if (_isLoggedIn && _userId != null) {
-        currentScreen = PantryContentScreen(userId: _userId!);
-      } else {
-        return const Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: Text('Please log in to access the pantry.'),
-            ),
+    if (!_isLoggedIn || _userId == null) {
+      return const Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Text('Please log in to access the pantry.'),
           ),
-        );
-      }
+        ),
+      );
     }
 
+    Widget currentScreen;
+    switch (_selectedScreen) {
+      case "Liste de courses":
+        currentScreen = GroceryScreen(userId: _userId!);
+        break;
+      case "Liste de recettes":
+        currentScreen = RecipeListScreen(userId: _userId!);
+        break;
+      default:
+        currentScreen = PantryContentScreen(userId: _userId!);
+        break;
+    }
+
+    final backgroundColor = Theme.of(context).colorScheme.secondary;
+
     return Scaffold(
-      body: SafeArea( // Add SafeArea here
+      backgroundColor: backgroundColor,
+      body: SafeArea(
         child: Column(
           children: [
-            ScreenPicker(
-              options: _screenOptions,
-              selectedOption: _selectedScreen,
-              onOptionSelected: _onScreenSelected,
+            Container(
+              color: backgroundColor,
+              child: ScreenPicker(
+                options: _screenOptions,
+                selectedOption: _selectedScreen,
+                onOptionSelected: _onScreenSelected,
+              ),
             ),
             Expanded(
-              child: currentScreen,
+              child: Container(
+                color: Colors.white,
+                child: currentScreen,
+              ),
             ),
           ],
         ),
