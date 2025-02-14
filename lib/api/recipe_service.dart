@@ -8,6 +8,11 @@ import 'diet_service.dart';
 
 class RecipeService {
   final ApiService _apiService;
+  final Map<String, String> _standardHeaders = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8',
+  };
 
   RecipeService(this._apiService);
 
@@ -40,11 +45,10 @@ class RecipeService {
   }
 
   Future<void> _loadIngredientsForRecipe(Recipe recipe) async {
-    // First, fetch all ingredients at once to reduce API calls
     try {
       final response = await http.get(
         Uri.parse(_apiService.getIngredientsUrl()),
-        headers: {'Accept-Charset': 'UTF-8'},
+        headers: _standardHeaders,
       );
 
       if (response.statusCode == 200) {
@@ -54,7 +58,6 @@ class RecipeService {
             json['id']: Ingredient.fromJson(json)
         };
 
-        // Update all step ingredients with their corresponding ingredient data
         for (var step in recipe.recipeSteps) {
           for (var stepIngredient in step.stepIngredients) {
             if (ingredientsMap.containsKey(stepIngredient.ingredientId)) {

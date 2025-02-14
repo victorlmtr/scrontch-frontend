@@ -72,4 +72,23 @@ class Recipe {
       rethrow;
     }
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'difficulty': difficulty,
+      'portions': portions,
+      'notes': notes,
+      'image': image,
+      'createdat': createdAt.toIso8601String(),
+      'updatedat': updatedAt?.toIso8601String(),
+      'typeid': type.toJson(),
+      'countries': countries.map((country) => country.toJson()).toList(),
+      'recipediets': recipeDiets.map((diet) => diet.toJson()).toList(),
+      'steps': recipeSteps.map((step) => step.toJson()).toList(),
+      'formattedTotalTime': formattedTotalTime,
+    };
+  }
 }

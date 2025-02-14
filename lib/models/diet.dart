@@ -39,4 +39,11 @@ class UserDiet {
       isChecked: true,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'dietid': dietId,
+      'userid': userId,
+    };
+  }
 }

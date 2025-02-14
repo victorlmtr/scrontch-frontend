@@ -13,4 +13,11 @@ class Unit {
       unitName: json['unitname'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'unitname': unitName,
+    };
+  }
 }
