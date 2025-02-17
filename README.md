@@ -7,8 +7,6 @@ L'appli prend aussi d'autres critères en compte comme le régime alimentaire, l
 
 On peut y créer des listes de courses qui permettent de rajouter automatiquement l'ingrédient dans le garde-manger lors de la confirmation.
 
-Lorsqu'on suit une recette, l'appli te demande "Il t'en reste ?" et tu peux décocher les ingrédients utilisés pour 
-
 <h3>Garde-manger</h3>
 
 On note que la coriandre fraîche est marquée comme essentielle (étoile verte) mais n'est actuellement pas dans le garde-manger.
